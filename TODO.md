@@ -6,64 +6,70 @@
 - [x] Create project structure
 - [x] Write PLAN.md
 - [x] Write README.md
-- [ ] Initialize go.mod dependencies (`go mod tidy`)
-- [ ] Create main.go (Bubbletea entry point)
-- [ ] Create types.go (Card, Category, AppState)
-- [ ] Create model.go (initialization)
+- [x] Initialize go.mod dependencies (`go mod tidy`)
+- [x] Create main.go (Bubbletea entry point)
+- [x] Create types.go (Card, Category, AppState)
+- [x] Create model.go (initialization)
 
 ### Data Layer
-- [ ] Create storage.go
-  - [ ] LoadData() - read cellblocks-data.json
-  - [ ] SaveData() - write cellblocks-data.json (future)
-  - [ ] Expand ~ to home directory
-  - [ ] Handle missing file gracefully
-  - [ ] Parse JSON correctly
+- [x] Create storage.go
+  - [x] LoadData() - read cellblocks-data.json
+  - [x] SaveData() - write cellblocks-data.json (future)
+  - [x] Expand ~ to home directory
+  - [x] Handle missing file gracefully
+  - [x] Parse JSON correctly
 
 ### Search & Filter
-- [ ] Create search.go
-  - [ ] SearchCards() - full-text search
-  - [ ] FilterByCategories() - category filtering
-  - [ ] Case-insensitive matching
-  - [ ] Search title + content
+- [x] Create search.go
+  - [x] SearchCards() - full-text search
+  - [x] FilterByCategories() - category filtering
+  - [x] Case-insensitive matching
+  - [x] Search title + content
 
 ### UI Components
-- [ ] Create view.go
-  - [ ] renderListView() - main card list
-  - [ ] renderPreviewPane() - selected card preview
-  - [ ] renderHeader() - search + filters
-  - [ ] renderStatusBar() - help hints
+- [x] Create view.go
+  - [x] renderListView() - main card list
+  - [x] renderGridView() - grid card layout
+  - [x] renderPreviewPane() - selected card preview
+  - [x] renderHeader() - search + filters
+  - [x] renderStatusBar() - help hints
+  - [x] renderHelp() - help dialog
 
-- [ ] Create styles.go
-  - [ ] Define color palette
-  - [ ] Card styles
-  - [ ] Header styles
-  - [ ] Status bar styles
+- [x] Create styles.go
+  - [x] Define color palette
+  - [x] Card styles (list and grid)
+  - [x] Header styles
+  - [x] Status bar styles
+  - [x] Grid card styles with category colors
 
 ### Event Handling
-- [ ] Create update.go
-  - [ ] Window resize
-  - [ ] Message dispatcher
-  - [ ] Init() function
+- [x] Create update.go
+  - [x] Window resize
+  - [x] Message dispatcher
+  - [x] Init() function
+  - [x] Keyboard navigation (↑↓←→, jk, hl)
+  - [x] Search (/)
+  - [x] Copy (Enter)
+  - [x] Quit (q)
+  - [x] Help (?)
+  - [x] Toggle preview (p)
+  - [x] Toggle grid view (g)
+  - [x] Grid navigation (2D movement)
 
-- [ ] Create update_keyboard.go
-  - [ ] Navigation (↑↓←→, jk, hl)
-  - [ ] Search (/)
-  - [ ] Copy (Enter)
-  - [ ] Quit (q)
-  - [ ] Help (?)
-  - [ ] Toggle preview (p)
-
-- [ ] Create update_mouse.go (port from TFE)
-  - [ ] Click to select
-  - [ ] Double-click to copy
-  - [ ] Scroll gestures
-  - [ ] Touch-friendly detection
+- [x] Enhanced mouse/touch (ported from TFE)
+  - [x] Basic mouse wheel scrolling
+  - [x] Click to select card (list and grid view)
+  - [x] Double-click to copy (500ms threshold)
+  - [x] Grid click detection (X/Y coordinate calculation)
+  - [x] WithMouseAllMotion() for better tracking
+  - [ ] Swipe gestures (future enhancement)
 
 ### Integration
-- [ ] Create clipboard.go
-  - [ ] Detect platform (Termux/Linux/macOS)
-  - [ ] CopyToClipboard() - termux-clipboard-set
-  - [ ] Fallback to xclip/pbcopy
+- [x] Create clipboard.go
+  - [x] Detect platform (Termux/Linux/macOS)
+  - [x] CopyToClipboard() - termux-clipboard-set
+  - [x] Fallback to xclip/pbcopy
+  - [x] Windows support (clip.exe)
 
 ### Testing
 - [ ] Test with real cellblocks-data.json
@@ -104,8 +110,24 @@
 
 ## Current Status
 
-**In Progress:** Project setup and planning
-**Next Task:** Create types.go and storage.go
+**Phase 1 Progress:** ✅ ~95% Complete!
+**Completed:**
+- All core functionality (data loading, search, filtering)
+- Full UI implementation (list view, grid view, preview panes)
+- Complete keyboard navigation
+- Enhanced mouse/touch navigation (click, double-click, wheel scroll)
+- Clipboard integration (all platforms)
+- Grid view selection visibility fix
+
+**Remaining:**
+- Testing with real cellblocks-data.json
+- Swipe gestures (optional enhancement)
+
+**Next Tasks:**
+1. Test with actual cellblocks-data.json (validate with 234+ cards)
+2. Begin Phase 2 (template support - {{variable}} detection)
+3. Add swipe gestures (optional)
+
 **Blockers:** None
 
 ## Quick Start Commands

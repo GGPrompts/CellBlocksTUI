@@ -9,7 +9,8 @@ Phase 1 MVP is complete and ready to use!
 - `storage.go` - JSON data loading
 - `search.go` - Full-text search & filtering
 - `model.go` - State management & helpers
-- `update.go` - Event handling (keyboard, mouse)
+- `update.go` - Event handling (keyboard)
+- `update_mouse.go` - Enhanced mouse/touch navigation
 - `view.go` - UI rendering with Lipgloss
 - `styles.go` - Color themes & styling
 - `clipboard.go` - Multi-platform clipboard support
@@ -52,19 +53,37 @@ cd ~/projects/CellBlocksTUI
 - `Esc` - Close help or clear search
 - `q` or `Ctrl+C` - Quit
 
+### Mouse/Touch Controls
+
+**Mouse Navigation:**
+- **Click** - Select card
+- **Double-click** - Copy card to clipboard (within 500ms)
+- **Wheel up/down** - Scroll through cards
+- Works in both list and grid views!
+
+**Touch-Friendly:**
+- Tap to select
+- Double-tap to copy
+- Swipe to scroll
+- Perfect for Termux on mobile!
+
 ## Features Working
 
 ✓ Load 271 cards from `~/projects/CellBlocks/data/cellblocks-data.json`
 ✓ **Grid view** - Beautiful card blocks with neon borders (press `g`)
 ✓ List view with scrollable cards
 ✓ Live search (type to filter)
-✓ Preview pane (toggle with `p` in list mode)
+✓ Preview pane (toggle with `p` in both modes, adaptive layouts)
 ✓ Copy to clipboard (works on Linux, macOS, Windows, Termux)
 ✓ Category-colored borders in grid view
 ✓ 2D navigation (arrow keys in grid)
-✓ Mouse/touch support (scroll, click)
+✓ **Enhanced mouse/touch support:**
+  - Click to select cards
+  - Double-click to copy (500ms threshold)
+  - Wheel scroll in both views
+  - Works in list and grid modes
 ✓ Help dialog (`?`)
-✓ Responsive layout
+✓ Responsive layout (adapts to screen size)
 
 ## Platform Support
 

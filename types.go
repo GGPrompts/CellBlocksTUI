@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 // types.go - Core Data Structures
 // Purpose: Define all data models and application state
 
@@ -67,6 +69,10 @@ type Model struct {
 
 	// Error state
 	Error error
+
+	// Click tracking for double-click detection
+	LastClickIndex int
+	LastClickTime  time.Time
 }
 
 // Messages for Bubbletea update loop

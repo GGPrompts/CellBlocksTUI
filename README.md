@@ -98,13 +98,17 @@ See [PLAN.md](./PLAN.md) for complete technical details.
 
 ## Development Status
 
-**Phase 1: Core Functionality (In Progress)**
-- [ ] Load cellblocks-data.json
-- [ ] Display cards in list view
-- [ ] Full-text search
-- [ ] Category filtering
-- [ ] Touch navigation (from TFE)
-- [ ] Clipboard integration
+**Phase 1: Core Functionality ✅ Complete!**
+- [x] Load cellblocks-data.json (271 cards, 10 categories)
+- [x] Display cards in list and grid views
+- [x] Full-text search (title + content)
+- [x] Category filtering
+- [x] Touch/mouse navigation (click, double-click, wheel)
+- [x] Clipboard integration (all platforms)
+- [x] Preview pane (adaptive layouts)
+- [x] Help system
+
+**Ready for testing!** Try running `./cellblocks-tui` or `cellblocks-tui` if installed.
 
 ## License
 

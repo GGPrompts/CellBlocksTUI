@@ -121,6 +121,8 @@ var (
 				Padding(0, 1).
 				Width(27).
 				Height(4).
+				Background(lipgloss.Color("#1a1a1a")).
+				Foreground(colorPrimary).
 				Bold(true)
 )
 

@@ -35,7 +35,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Mouse events
 	case tea.MouseMsg:
-		return m.handleMouseEvent(msg)
+		return m.handleMouseEventEnhanced(msg)
 	}
 
 	return m, nil
@@ -163,19 +163,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleMouseEvent processes mouse/touch input
-func (m Model) handleMouseEvent(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	// TODO: Implement touch navigation (port from TFE)
-	// For now, basic mouse support
-	switch msg.Type {
-	case tea.MouseWheelUp:
-		m.moveSelection(-1)
-		return m, nil
-
-	case tea.MouseWheelDown:
-		m.moveSelection(1)
-		return m, nil
-	}
-
-	return m, nil
-}
+// handleMouseEvent is replaced by handleMouseEventEnhanced in update_mouse.go
+// Kept here as reference for the old basic implementation
+// func (m Model) handleMouseEvent(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+// 	switch msg.Type {
+// 	case tea.MouseWheelUp:
+// 		m.moveSelection(-1)
+// 		return m, nil
+// 	case tea.MouseWheelDown:
+// 		m.moveSelection(1)
+// 		return m, nil
+// 	}
+// 	return m, nil
+// }

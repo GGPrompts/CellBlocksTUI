@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -24,6 +26,8 @@ func initialModel() Model {
 		Width:              80,
 		Height:             24,
 		Error:              nil,
+		LastClickIndex:     -1,
+		LastClickTime:      time.Time{},
 	}
 }
 
