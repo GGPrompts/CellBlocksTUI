@@ -258,6 +258,14 @@ func renderGridCards(m Model, width, height int) string {
 		return ""
 	}
 
+	// Validate dimensions to prevent panics
+	if width < GridCardTotalWidth {
+		width = GridCardTotalWidth
+	}
+	if height < GridCardTotalHeight {
+		height = GridCardTotalHeight
+	}
+
 	// Calculate grid dimensions using constants
 	cols := max(1, min(width/GridCardTotalWidth, GridMaxColumns))
 	rows := max(1, height/GridCardTotalHeight)
@@ -330,44 +338,34 @@ func renderGridWithPreview(m Model) string {
 	// For wide screens (>120 chars), do side-by-side
 	// For narrow screens, do top/bottom
 	if m.Width > 120 {
-		// Side-by-side: grid on left, preview on right
-		// Calculate how many columns can actually fit, then use that for width calculations
-		// Start with half the width for the grid area
-		maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
-		gridAreaWidth := min(m.Width/2, maxGridWidth)
+		// Side-by-side: FIXED 50/50 split for stability
+		// This avoids complex calculations that can produce invalid dimensions
+		gridWidth := m.Width / 2
+		previewWidth := m.Width - gridWidth - 4 // Account for spacing and borders
 
-		// Calculate actual columns that will fit in the grid area
-		actualCols := max(1, min(gridAreaWidth/GridCardTotalWidth, GridMaxColumns))
-		actualGridWidth := actualCols * GridCardTotalWidth
-
-		// Preview gets the remaining space
-		// Account for: margin (2) + preview border (2) = 4 total
-		previewWidth := m.Width - actualGridWidth - 4
-
-		// Ensure preview has minimum usable width
+		// Ensure minimum widths
+		if gridWidth < GridCardTotalWidth {
+			gridWidth = GridCardTotalWidth
+		}
 		if previewWidth < 30 {
 			previewWidth = 30
-			actualGridWidth = m.Width - previewWidth - 4
 		}
 
-		// Safety check: ensure grid width is positive
-		if actualGridWidth < GridCardTotalWidth {
-			actualGridWidth = GridCardTotalWidth
-		}
-
-		gridView := renderGridCards(m, actualGridWidth, availableHeight)
+		gridView := renderGridCards(m, gridWidth, availableHeight)
 		previewView := renderPreviewPaneWithWidth(m, availableHeight, previewWidth)
 
 		return lipgloss.JoinHorizontal(lipgloss.Top, gridView, "  ", previewView)
 	} else {
-		// Top/bottom: grid on top, preview on bottom
-		var gridHeight, previewHeight int
-		if availableHeight > 50 {
-			gridHeight = availableHeight * 2 / 5      // 40% grid
-			previewHeight = availableHeight - gridHeight // 60% preview
-		} else {
-			gridHeight = availableHeight / 2
-			previewHeight = availableHeight - gridHeight
+		// Top/bottom: FIXED 40/60 split for stability
+		gridHeight := (availableHeight * 2) / 5      // 40% for grid
+		previewHeight := availableHeight - gridHeight // 60% for preview
+
+		// Ensure minimum heights
+		if gridHeight < GridCardTotalHeight {
+			gridHeight = GridCardTotalHeight
+		}
+		if previewHeight < 10 {
+			previewHeight = 10
 		}
 
 		gridView := renderGridCards(m, m.Width, gridHeight)
