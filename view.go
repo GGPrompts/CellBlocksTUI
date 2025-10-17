@@ -350,6 +350,11 @@ func renderGridWithPreview(m Model) string {
 			actualGridWidth = m.Width - previewWidth - 4
 		}
 
+		// Safety check: ensure grid width is positive
+		if actualGridWidth < GridCardTotalWidth {
+			actualGridWidth = GridCardTotalWidth
+		}
+
 		gridView := renderGridCards(m, actualGridWidth, availableHeight)
 		previewView := renderPreviewPaneWithWidth(m, availableHeight, previewWidth)
 
@@ -525,6 +530,14 @@ func renderPreviewPane(m Model, height int) string {
 
 // renderPreviewPaneWithWidth renders preview pane with custom width
 func renderPreviewPaneWithWidth(m Model, height int, width int) string {
+	// Validate dimensions to prevent panics from glamour/lipgloss
+	if width < 10 {
+		width = 10
+	}
+	if height < 5 {
+		height = 5
+	}
+
 	card := m.getPreviewedCard()
 	if card == nil {
 		return stylePreviewPane.
@@ -1149,6 +1162,11 @@ func buildDetailFooter(m Model, hasTemplates bool) string {
 
 // renderMarkdown uses glamour to render markdown content
 func renderMarkdown(content string, width int) string {
+	// Validate width to prevent glamour panics
+	if width < 10 {
+		width = 10
+	}
+
 	// Create a new glamour renderer with dark style
 	r, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
