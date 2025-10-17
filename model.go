@@ -26,6 +26,8 @@ func initialModel() Model {
 		ShowHelp:            false,
 		UseMarkdownRender:   true,           // Enable markdown by default (cards have markdown)
 		DetailScrollOffset:  0,
+		SortColumn:          "title",        // Default sort by title
+		SortDirection:       "asc",          // Ascending by default
 		TemplateVars:        make(map[string]string),
 		DetectedVars:        []string{},
 		TemplateFormField:   0,

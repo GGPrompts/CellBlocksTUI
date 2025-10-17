@@ -142,19 +142,25 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "g":
-		// Toggle between list and grid view
-		if m.ViewMode == ViewGrid {
-			m.ViewMode = ViewList
-		} else {
+		// Cycle through list → grid → table → list
+		switch m.ViewMode {
+		case ViewList:
 			m.ViewMode = ViewGrid
-			// Reset scroll offset when switching to grid view
 			m.ScrollOffset = 0
+		case ViewGrid:
+			m.ViewMode = ViewTable
+			m.ScrollOffset = 0
+		case ViewTable:
+			m.ViewMode = ViewList
+			m.ScrollOffset = 0
+		default:
+			m.ViewMode = ViewList
 		}
 		return m, nil
 
 	case "f":
 		// Open category filter screen
-		if m.ViewMode == ViewList || m.ViewMode == ViewGrid {
+		if m.ViewMode == ViewList || m.ViewMode == ViewGrid || m.ViewMode == ViewTable {
 			m.ViewMode = ViewCategoryFilter
 			m.FilterCursorIndex = 0
 		}
@@ -162,7 +168,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "n":
 		// Open card creation screen
-		if m.ViewMode == ViewList || m.ViewMode == ViewGrid {
+		if m.ViewMode == ViewList || m.ViewMode == ViewGrid || m.ViewMode == ViewTable {
 			m.ViewMode = ViewCardCreate
 			m.CreateFormField = 0
 			m.NewCardTitle = ""
@@ -170,6 +176,74 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Default to first category if available
 			if m.Data != nil && len(m.Data.Categories) > 0 {
 				m.NewCardCategoryID = m.Data.Categories[0].ID
+			}
+		}
+		return m, nil
+
+	case "1":
+		// Sort by title (table view only)
+		if m.ViewMode == ViewTable {
+			if m.SortColumn == "title" {
+				// Toggle direction
+				if m.SortDirection == "asc" {
+					m.SortDirection = "desc"
+				} else {
+					m.SortDirection = "asc"
+				}
+			} else {
+				m.SortColumn = "title"
+				m.SortDirection = "asc"
+			}
+		}
+		return m, nil
+
+	case "2":
+		// Sort by category (table view only)
+		if m.ViewMode == ViewTable {
+			if m.SortColumn == "category" {
+				// Toggle direction
+				if m.SortDirection == "asc" {
+					m.SortDirection = "desc"
+				} else {
+					m.SortDirection = "asc"
+				}
+			} else {
+				m.SortColumn = "category"
+				m.SortDirection = "asc"
+			}
+		}
+		return m, nil
+
+	case "3":
+		// Sort by created date (table view only)
+		if m.ViewMode == ViewTable {
+			if m.SortColumn == "created" {
+				// Toggle direction
+				if m.SortDirection == "asc" {
+					m.SortDirection = "desc"
+				} else {
+					m.SortDirection = "asc"
+				}
+			} else {
+				m.SortColumn = "created"
+				m.SortDirection = "asc"
+			}
+		}
+		return m, nil
+
+	case "4":
+		// Sort by updated date (table view only)
+		if m.ViewMode == ViewTable {
+			if m.SortColumn == "updated" {
+				// Toggle direction
+				if m.SortDirection == "asc" {
+					m.SortDirection = "desc"
+				} else {
+					m.SortDirection = "asc"
+				}
+			} else {
+				m.SortColumn = "updated"
+				m.SortDirection = "asc"
 			}
 		}
 		return m, nil
@@ -223,8 +297,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, -1) // Move up one row
 		} else {
 			m.moveSelection(-1)
-			// In list view, update preview as you navigate
-			m.PreviewedIndex = m.SelectedIndex
+			// In list/table view, update preview as you navigate
+			if m.ViewMode == ViewList {
+				m.PreviewedIndex = m.SelectedIndex
+			}
 		}
 		return m, nil
 
@@ -233,8 +309,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, 1) // Move down one row
 		} else {
 			m.moveSelection(1)
-			// In list view, update preview as you navigate
-			m.PreviewedIndex = m.SelectedIndex
+			// In list/table view, update preview as you navigate
+			if m.ViewMode == ViewList {
+				m.PreviewedIndex = m.SelectedIndex
+			}
 		}
 		return m, nil
 
@@ -266,7 +344,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "pageup":
 		m.moveSelection(-m.getVisibleCardCount())
-		// In list view, update preview
+		// In list/table view, update preview
 		if m.ViewMode == ViewList {
 			m.PreviewedIndex = m.SelectedIndex
 		}
@@ -274,7 +352,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "pagedown":
 		m.moveSelection(m.getVisibleCardCount())
-		// In list view, update preview
+		// In list/table view, update preview
 		if m.ViewMode == ViewList {
 			m.PreviewedIndex = m.SelectedIndex
 		}
@@ -283,7 +361,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "home":
 		m.SelectedIndex = 0
 		m.ScrollOffset = 0
-		// In list view, update preview
+		// In list/table view, update preview
 		if m.ViewMode == ViewList {
 			m.PreviewedIndex = m.SelectedIndex
 		}
@@ -293,7 +371,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.SelectedIndex = max(0, len(m.FilteredCards)-1)
 		visibleCount := m.getVisibleCardCount()
 		m.ScrollOffset = max(0, len(m.FilteredCards)-visibleCount)
-		// In list view, update preview
+		// In list/table view, update preview
 		if m.ViewMode == ViewList {
 			m.PreviewedIndex = m.SelectedIndex
 		}

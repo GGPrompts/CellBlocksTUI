@@ -90,6 +90,12 @@ var (
 			BorderTop(true).
 			BorderForeground(colorGray)
 
+	// Table view header
+	styleTableHeader = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorSecondary).
+			Background(lipgloss.Color("#1a1a1a"))
+
 	// Error message
 	styleError = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#ff0000")).

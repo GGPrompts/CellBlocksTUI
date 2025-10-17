@@ -50,6 +50,9 @@ func (m Model) View() string {
 	if m.ViewMode == ViewGrid {
 		// Grid view
 		sections = append(sections, renderGridView(m))
+	} else if m.ViewMode == ViewTable {
+		// Table view
+		sections = append(sections, renderTableView(m))
 	} else if m.ShowPreview {
 		// Split view: list + preview
 		sections = append(sections, renderSplitView(m))
@@ -366,6 +369,136 @@ func renderGridWithPreview(m Model) string {
 	}
 }
 
+// renderTableView renders cards in an Excel-style table with sortable columns
+func renderTableView(m Model) string {
+	if len(m.FilteredCards) == 0 {
+		return styleSubtle.Render("No cards found. Press '/' to clear filters or type to search.")
+	}
+
+	// Sort cards based on current sort column and direction
+	sortedCards := sortCards(m.FilteredCards, m.CategoryMap, m.SortColumn, m.SortDirection)
+
+	// Calculate column widths based on terminal width
+	// Available width = terminal width - borders and padding
+	availableWidth := m.Width - 4
+
+	// Column width distribution (percentages of available width)
+	// Title: 40%, Category: 20%, Created: 20%, Updated: 20%
+	titleWidth := availableWidth * 4 / 10
+	categoryWidth := availableWidth * 2 / 10
+	createdWidth := availableWidth * 2 / 10
+	updatedWidth := availableWidth - titleWidth - categoryWidth - createdWidth // Remaining space
+
+	// Minimum widths to prevent squishing
+	if titleWidth < 20 {
+		titleWidth = 20
+	}
+	if categoryWidth < 10 {
+		categoryWidth = 10
+	}
+	if createdWidth < 10 {
+		createdWidth = 10
+	}
+	if updatedWidth < 10 {
+		updatedWidth = 10
+	}
+
+	// Build header row with sort indicators
+	titleHeader := "Title" + getSortIndicator("title", m.SortColumn, m.SortDirection)
+	categoryHeader := "Category" + getSortIndicator("category", m.SortColumn, m.SortDirection)
+	createdHeader := "Created" + getSortIndicator("created", m.SortColumn, m.SortDirection)
+	updatedHeader := "Updated" + getSortIndicator("updated", m.SortColumn, m.SortDirection)
+
+	// Pad headers to column width
+	titleHeader = padOrTruncate(titleHeader, titleWidth)
+	categoryHeader = padOrTruncate(categoryHeader, categoryWidth)
+	createdHeader = padOrTruncate(createdHeader, createdWidth)
+	updatedHeader = padOrTruncate(updatedHeader, updatedWidth)
+
+	// Style the header
+	headerRow := styleTableHeader.Render(
+		fmt.Sprintf("%s │ %s │ %s │ %s",
+			titleHeader,
+			categoryHeader,
+			createdHeader,
+			updatedHeader,
+		),
+	)
+
+	// Separator line
+	separator := strings.Repeat("─", titleWidth) + "─┼─" +
+		strings.Repeat("─", categoryWidth) + "─┼─" +
+		strings.Repeat("─", createdWidth) + "─┼─" +
+		strings.Repeat("─", updatedWidth)
+
+	var lines []string
+	lines = append(lines, headerRow)
+	lines = append(lines, separator)
+
+	// Calculate visible rows
+	availableHeight := m.Height - 6 - 2 // Header + status bar + table header
+	visibleCount := max(1, availableHeight)
+
+	// Calculate which cards to show based on scroll offset
+	start := m.ScrollOffset
+	end := min(start+visibleCount, len(sortedCards))
+
+	// Render table rows
+	for i := start; i < end; i++ {
+		card := sortedCards[i]
+		isSelected := i == m.SelectedIndex
+
+		// Get category name
+		categoryName := ""
+		categoryColor := ""
+		if cat, ok := m.CategoryMap[card.CategoryID]; ok {
+			categoryName = cat.Name
+			categoryColor = cat.Color
+		}
+
+		// Format data for display
+		title := padOrTruncate(card.Title, titleWidth)
+		category := padOrTruncate(categoryName, categoryWidth)
+		created := padOrTruncate(formatDate(card.CreatedAt), createdWidth)
+		updated := padOrTruncate(formatDate(card.UpdatedAt), updatedWidth)
+
+		// Build row
+		row := fmt.Sprintf("%s │ %s │ %s │ %s",
+			title,
+			styleCategoryName(category, categoryColor),
+			created,
+			updated,
+		)
+
+		// Apply selection style
+		if isSelected {
+			row = styleCardItemSelected.Width(m.Width).Render("> " + row)
+		} else {
+			row = styleCardItem.Width(m.Width).Render("  " + row)
+		}
+
+		lines = append(lines, row)
+	}
+
+	// Pad with empty lines if needed
+	for len(lines)-2 < visibleCount { // -2 for header and separator
+		lines = append(lines, "")
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// padOrTruncate pads a string to the specified width or truncates if too long
+func padOrTruncate(s string, width int) string {
+	if len(s) > width {
+		if width <= 3 {
+			return s[:width]
+		}
+		return s[:width-3] + "..."
+	}
+	return s + strings.Repeat(" ", width-len(s))
+}
+
 // renderPreviewPane renders the selected card's full content
 func renderPreviewPane(m Model, height int) string {
 	return renderPreviewPaneWithWidth(m, height, m.Width-2)
@@ -482,6 +615,15 @@ func renderStatusBar(m Model) string {
 				styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
 				styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
 				styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
+				styleHelpKey.Render("g") + styleHelpDesc.Render(" table"),
+				styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+			}
+		} else if m.ViewMode == ViewTable {
+			hints = []string{
+				styleHelpKey.Render("↑↓") + styleHelpDesc.Render(" navigate"),
+				styleHelpKey.Render("1-4") + styleHelpDesc.Render(" sort"),
+				styleHelpKey.Render("Enter") + styleHelpDesc.Render(" view"),
+				styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
 				styleHelpKey.Render("g") + styleHelpDesc.Render(" list"),
 				styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
 			}
@@ -514,10 +656,17 @@ func renderHelp(m Model) string {
 		"  Home/End       Jump to first/last",
 		"",
 		styleHelpKey.Render("View:"),
-		"  g              Toggle grid/list view",
-		"  p              Toggle preview pane (both modes)",
+		"  g              Cycle through list → grid → table view",
+		"  p              Toggle preview pane (list/grid modes)",
 		"                 Side-by-side on wide screens!",
 		"  Space          Pin card to preview (grid view)",
+		"",
+		styleHelpKey.Render("Table View:"),
+		"  1              Sort by title (press again to reverse)",
+		"  2              Sort by category",
+		"  3              Sort by created date",
+		"  4              Sort by updated date",
+		"  ↑↓/k/j         Navigate rows",
 		"",
 		styleHelpKey.Render("Actions:"),
 		"  Enter, d       Open card in detail view",

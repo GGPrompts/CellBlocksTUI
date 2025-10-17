@@ -39,6 +39,7 @@ type ViewMode int
 const (
 	ViewList ViewMode = iota
 	ViewGrid
+	ViewTable
 	ViewDetail
 	ViewCategoryFilter
 	ViewCardCreate
@@ -65,6 +66,10 @@ type Model struct {
 	ShowHelp           bool
 	UseMarkdownRender  bool // Toggle markdown rendering in preview/detail
 	DetailScrollOffset int  // Scroll position within detail view
+
+	// Table view sorting
+	SortColumn    string // "title", "category", "created", "updated"
+	SortDirection string // "asc", "desc"
 
 	// Category filter screen
 	FilterCursorIndex int // Selected category in filter screen
