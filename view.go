@@ -320,8 +320,44 @@ func renderGridCard(m Model, card *Card, selected bool) string {
 		categoryColor = cat.Color
 	}
 
-	// Wrap title to 3 lines (23 chars = 27 width - 4 for padding)
-	lines := wrapText(card.Title, 23, 3)
+	// Card has 5 lines available (GridCardHeight = 5)
+	// Strategy: Title (1-2 lines) + Content preview (remaining lines)
+
+	// Wrap title to max 2 lines (23 chars = 27 width - 4 for padding)
+	titleLines := wrapText(card.Title, 23, 2)
+
+	// Calculate remaining lines for content preview
+	remainingLines := 5 - len(titleLines)
+
+	// Build output
+	var lines []string
+
+	// Add title (bold/primary)
+	for _, line := range titleLines {
+		if selected {
+			lines = append(lines, styleCardTitleSelected.Render(line))
+		} else {
+			lines = append(lines, styleCardTitle.Render(line))
+		}
+	}
+
+	// Add content preview (dimmed) if we have space
+	if remainingLines > 0 && card.Content != "" {
+		// Clean content: strip newlines, truncate
+		contentPreview := strings.ReplaceAll(card.Content, "\n", " ")
+		contentPreview = strings.TrimSpace(contentPreview)
+
+		// Wrap content to remaining lines
+		contentLines := wrapText(contentPreview, 23, remainingLines)
+		for _, line := range contentLines {
+			lines = append(lines, styleSubtle.Render(line))
+		}
+	}
+
+	// Pad to 5 lines if needed
+	for len(lines) < 5 {
+		lines = append(lines, "")
+	}
 
 	// Build card content
 	content := strings.Join(lines, "\n")
