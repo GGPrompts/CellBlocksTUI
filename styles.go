@@ -112,15 +112,15 @@ var (
 	// Grid view card - compact 27 chars wide (was 36)
 	styleGridCard = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			Padding(0, 1).
+			Padding(1, 1).
 			Width(27).
-			Height(4)
+			Height(5)
 
 	styleGridCardSelected = lipgloss.NewStyle().
 				Border(lipgloss.ThickBorder()).
-				Padding(0, 1).
+				Padding(1, 1).
 				Width(27).
-				Height(4).
+				Height(5).
 				Background(lipgloss.Color("#1a1a1a")).
 				Foreground(colorPrimary).
 				Bold(true)
@@ -216,9 +216,10 @@ func makeGridCardStyle(categoryColor string, selected bool) lipgloss.Style {
 
 // Grid card dimensions (keep these in sync with styleGridCard)
 const (
-	GridCardWidth  = 27 // Inner width
-	GridCardHeight = 4  // Inner height
-	GridCardSpacing = 2 // Border + spacing
-	GridCardTotalWidth = GridCardWidth + GridCardSpacing  // 29 total
-	GridCardTotalHeight = GridCardHeight + GridCardSpacing // 6 total
+	GridCardWidth       = 27 // Content width (Width in style)
+	GridCardHeight      = 5  // Content height (Height in style)
+	GridCardBorder      = 2  // Border adds 2 to width and height (top+bottom, left+right)
+	GridCardTotalWidth  = GridCardWidth + GridCardBorder   // 29 total
+	GridCardTotalHeight = GridCardHeight + GridCardBorder  // 7 total
+	GridMaxColumns      = 6  // Maximum columns to prevent spreading on wide screens
 )

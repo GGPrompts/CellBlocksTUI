@@ -189,12 +189,21 @@ func renderGridCards(m Model, width, height int) string {
 	}
 
 	// Calculate grid dimensions using constants
-	cols := max(1, width/GridCardTotalWidth)
+	cols := max(1, min(width/GridCardTotalWidth, GridMaxColumns))
 	rows := max(1, height/GridCardTotalHeight)
 
 	// Calculate visible cards based on scroll offset
 	cardsPerPage := cols * rows
 	startIdx := (m.ScrollOffset / cols) * cols // Align to row boundary
+
+	// Sanity check: ensure startIdx is valid
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	if startIdx >= len(m.FilteredCards) {
+		startIdx = 0
+	}
+
 	endIdx := min(startIdx+cardsPerPage, len(m.FilteredCards))
 
 	// Build grid
@@ -216,12 +225,8 @@ func renderGridCards(m Model, width, height int) string {
 		}
 	}
 
-	// Add remaining cards in partial row
+	// Add remaining cards in partial row (without padding empty spaces)
 	if len(currentRow) > 0 {
-		// Pad with empty cards if needed
-		for len(currentRow) < cols {
-			currentRow = append(currentRow, strings.Repeat(" ", GridCardTotalWidth))
-		}
 		gridRows = append(gridRows, lipgloss.JoinHorizontal(lipgloss.Top, currentRow...))
 	}
 
@@ -256,16 +261,15 @@ func renderGridWithPreview(m Model) string {
 	// For narrow screens, do top/bottom
 	if m.Width > 120 {
 		// Side-by-side: grid on left, preview on right
-		gridWidth := m.Width * 3 / 5  // 60% for grid
-		previewWidth := m.Width - gridWidth
+		// Calculate actual grid width based on max columns to prevent overflow
+		maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2 // Cards + small margin
+		gridWidth := min(m.Width/2, maxGridWidth) // Use 50% or actual needed width, whichever is smaller
+		previewWidth := m.Width - gridWidth - 2   // Subtract margin
 
 		gridView := renderGridCards(m, gridWidth, availableHeight)
-		previewView := renderPreviewPane(m, availableHeight)
+		previewView := renderPreviewPaneWithWidth(m, availableHeight, previewWidth)
 
-		// Adjust preview width
-		previewView = lipgloss.NewStyle().Width(previewWidth).Render(previewView)
-
-		return lipgloss.JoinHorizontal(lipgloss.Top, gridView, previewView)
+		return lipgloss.JoinHorizontal(lipgloss.Top, gridView, "  ", previewView)
 	} else {
 		// Top/bottom: grid on top, preview on bottom
 		var gridHeight, previewHeight int
@@ -286,12 +290,17 @@ func renderGridWithPreview(m Model) string {
 
 // renderPreviewPane renders the selected card's full content
 func renderPreviewPane(m Model, height int) string {
-	card := m.getSelectedCard()
+	return renderPreviewPaneWithWidth(m, height, m.Width-2)
+}
+
+// renderPreviewPaneWithWidth renders preview pane with custom width
+func renderPreviewPaneWithWidth(m Model, height int, width int) string {
+	card := m.getPreviewedCard()
 	if card == nil {
 		return stylePreviewPane.
-			Width(m.Width - 2).
+			Width(width).
 			Height(height - 2).
-			Render("No card selected")
+			Render("No card previewed - click a card to preview")
 	}
 
 	// Get category
@@ -318,11 +327,34 @@ func renderPreviewPane(m Model, height int) string {
 	}
 
 	contentLines := strings.Split(content, "\n")
-	if len(contentLines) > maxLines {
-		contentLines = contentLines[:maxLines]
-		contentLines = append(contentLines, styleSubtle.Render("..."))
+	totalLines := len(contentLines)
+
+	// Apply scroll offset
+	startLine := m.PreviewScrollOffset
+	if startLine >= totalLines {
+		startLine = max(0, totalLines-1)
 	}
-	content = strings.Join(contentLines, "\n")
+
+	endLine := min(startLine+maxLines, totalLines)
+	visibleLines := contentLines[startLine:endLine]
+
+	// Add scroll indicators
+	scrollInfo := ""
+	if startLine > 0 {
+		scrollInfo = styleSubtle.Render(fmt.Sprintf("▲ (line %d/%d)", startLine+1, totalLines))
+	}
+	if endLine < totalLines {
+		if scrollInfo != "" {
+			scrollInfo += " "
+		}
+		scrollInfo += styleSubtle.Render(fmt.Sprintf("▼ (Shift+↑↓ to scroll)"))
+	}
+
+	if scrollInfo != "" {
+		visibleLines = append(visibleLines, scrollInfo)
+	}
+
+	content = strings.Join(visibleLines, "\n")
 
 	preview := lipgloss.JoinVertical(lipgloss.Left,
 		header,
@@ -331,7 +363,7 @@ func renderPreviewPane(m Model, height int) string {
 	)
 
 	return stylePreviewPane.
-		Width(m.Width - 2).
+		Width(width).
 		Height(height - 2).
 		Render(preview)
 }
@@ -372,6 +404,7 @@ func renderHelp(m Model) string {
 		styleHelpKey.Render("Navigation:"),
 		"  ↑/k, ↓/j       Navigate cards",
 		"  ←/h, →/l       Navigate left/right (grid view)",
+		"  Shift+↑/↓      Scroll preview content (grid)",
 		"  PgUp/PgDn      Scroll by page",
 		"  Home/End       Jump to first/last",
 		"",
@@ -379,9 +412,13 @@ func renderHelp(m Model) string {
 		"  g              Toggle grid/list view",
 		"  p              Toggle preview pane (both modes)",
 		"                 Side-by-side on wide screens!",
+		"  Space          Pin card to preview (grid view)",
 		"",
 		styleHelpKey.Render("Actions:"),
 		"  Enter, c       Copy card to clipboard",
+		"  Click          Select & pin to preview (grid)",
+		"  Double-click   Copy card to clipboard",
+		"  Mouse wheel    Scroll preview (over preview pane)",
 		"  /              Clear filters",
 		"  Type...        Search cards",
 		"  Backspace      Delete search character",

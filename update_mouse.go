@@ -15,6 +15,18 @@ func (m Model) handleMouseEventEnhanced(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// Handle mouse wheel scrolling
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
+		// In grid view with preview: check if mouse is over preview pane
+		if m.ViewMode == ViewGrid && m.ShowPreview && m.Width > 120 {
+			// Side-by-side layout: preview is on right side
+			maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
+			gridWidth := min(m.Width/2, maxGridWidth)
+			if msg.X > gridWidth {
+				// Mouse is over preview - scroll preview content
+				m.PreviewScrollOffset = max(0, m.PreviewScrollOffset-3)
+				return m, nil
+			}
+		}
+		// Otherwise scroll card list
 		if m.ViewMode == ViewGrid {
 			m.moveSelectionGrid(0, -1) // Move up one row
 		} else {
@@ -23,6 +35,18 @@ func (m Model) handleMouseEventEnhanced(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.MouseButtonWheelDown:
+		// In grid view with preview: check if mouse is over preview pane
+		if m.ViewMode == ViewGrid && m.ShowPreview && m.Width > 120 {
+			// Side-by-side layout: preview is on right side
+			maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
+			gridWidth := min(m.Width/2, maxGridWidth)
+			if msg.X > gridWidth {
+				// Mouse is over preview - scroll preview content
+				m.PreviewScrollOffset += 3
+				return m, nil
+			}
+		}
+		// Otherwise scroll card list
 		if m.ViewMode == ViewGrid {
 			m.moveSelectionGrid(0, 1) // Move down one row
 		} else {
@@ -66,8 +90,10 @@ func (m Model) handleLeftClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.LastClickTime = time.Time{}
 		return m, copyToClipboard(card.Content)
 	} else {
-		// Single-click: select card
+		// Single-click: select card and update preview
 		m.SelectedIndex = clickedIndex
+		m.PreviewedIndex = clickedIndex // Update preview on click
+		m.PreviewScrollOffset = 0       // Reset preview scroll when changing card
 		m.LastClickIndex = clickedIndex
 		m.LastClickTime = now
 
@@ -142,8 +168,9 @@ func (m Model) calculateGridClickIndex(msg tea.MouseMsg, headerOffset int) int {
 
 	if m.ShowPreview {
 		if m.Width > 120 {
-			// Side-by-side: grid gets 60% of width
-			availableWidth = m.Width * 3 / 5
+			// Side-by-side: use same calculation as rendering
+			maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
+			availableWidth = min(m.Width/2, maxGridWidth)
 		} else {
 			// Top/bottom: adjust height
 			if availableHeight > 50 {
@@ -154,8 +181,8 @@ func (m Model) calculateGridClickIndex(msg tea.MouseMsg, headerOffset int) int {
 		}
 	}
 
-	// Calculate grid dimensions
-	cols := max(1, availableWidth/GridCardTotalWidth)
+	// Calculate grid dimensions (MUST match rendering logic)
+	cols := max(1, min(availableWidth/GridCardTotalWidth, GridMaxColumns))
 
 	// Calculate which row and column were clicked
 	clickedRow := (msg.Y - headerOffset) / GridCardTotalHeight
@@ -195,12 +222,14 @@ func (m *Model) ensureListSelectionVisible() {
 
 // ensureGridSelectionVisible updates scroll offset to keep selected card visible in grid view
 func (m *Model) ensureGridSelectionVisible() {
-	// Calculate grid dimensions
+	// Calculate grid dimensions (MUST match rendering logic)
 	availableWidth := m.Width
 	availableHeight := m.Height - 6
 
 	if m.ShowPreview && m.Width > 120 {
-		availableWidth = m.Width * 3 / 5
+		// Side-by-side: use same calculation as rendering
+		maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
+		availableWidth = min(m.Width/2, maxGridWidth)
 	} else if m.ShowPreview {
 		if availableHeight > 50 {
 			availableHeight = availableHeight * 2 / 5
@@ -209,7 +238,7 @@ func (m *Model) ensureGridSelectionVisible() {
 		}
 	}
 
-	cols := max(1, availableWidth/GridCardTotalWidth)
+	cols := max(1, min(availableWidth/GridCardTotalWidth, GridMaxColumns))
 	visibleRows := max(1, availableHeight/GridCardTotalHeight)
 
 	// Get current row and scroll row

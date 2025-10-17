@@ -12,22 +12,24 @@ import (
 // initialModel creates the initial application state
 func initialModel() Model {
 	return Model{
-		Data:               nil, // Will be loaded asynchronously
-		FilteredCards:      []Card{},
-		CategoryMap:        make(map[string]Category),
-		SelectedIndex:      0,
-		ScrollOffset:       0,
-		SearchQuery:        "",
-		SelectedCategories: make(map[string]bool),
-		ViewMode:           ViewList,
-		ShowPreview:        true,
-		ShowHelp:           false,
-		TemplateVars:       make(map[string]string),
-		Width:              80,
-		Height:             24,
-		Error:              nil,
-		LastClickIndex:     -1,
-		LastClickTime:      time.Time{},
+		Data:                nil, // Will be loaded asynchronously
+		FilteredCards:       []Card{},
+		CategoryMap:         make(map[string]Category),
+		SelectedIndex:       0,
+		PreviewedIndex:      0,
+		PreviewScrollOffset: 0,
+		ScrollOffset:        0,
+		SearchQuery:         "",
+		SelectedCategories:  make(map[string]bool),
+		ViewMode:            ViewList,
+		ShowPreview:         false, // Start with preview off for cleaner initial layout
+		ShowHelp:            false,
+		TemplateVars:        make(map[string]string),
+		Width:               80,
+		Height:              24,
+		Error:               nil,
+		LastClickIndex:      -1,
+		LastClickTime:       time.Time{},
 	}
 }
 
@@ -82,6 +84,14 @@ func (m *Model) getSelectedCard() *Card {
 		return nil
 	}
 	return &m.FilteredCards[m.SelectedIndex]
+}
+
+// getPreviewedCard returns the card shown in preview pane, or nil if none
+func (m *Model) getPreviewedCard() *Card {
+	if len(m.FilteredCards) == 0 || m.PreviewedIndex < 0 || m.PreviewedIndex >= len(m.FilteredCards) {
+		return nil
+	}
+	return &m.FilteredCards[m.PreviewedIndex]
 }
 
 // getCategoryForCard returns the category for a given card
@@ -147,7 +157,7 @@ func (m *Model) moveSelectionGrid(dx, dy int) {
 		// Side-by-side layout: grid gets 60% of width
 		availableWidth = m.Width * 3 / 5
 	}
-	cols := max(1, availableWidth/GridCardTotalWidth)
+	cols := max(1, min(availableWidth/GridCardTotalWidth, GridMaxColumns))
 
 	// Get current row and column
 	currentRow := m.SelectedIndex / cols
@@ -205,6 +215,15 @@ func (m *Model) moveSelectionGrid(dx, dy int) {
 	}
 	if newRow >= scrollRow+visibleRows {
 		m.ScrollOffset = (newRow - visibleRows + 1) * cols
+	}
+
+	// Clamp scroll offset to valid range
+	maxScrollOffset := max(0, len(m.FilteredCards)-1)
+	if m.ScrollOffset > maxScrollOffset {
+		m.ScrollOffset = maxScrollOffset
+	}
+	if m.ScrollOffset < 0 {
+		m.ScrollOffset = 0
 	}
 }
 

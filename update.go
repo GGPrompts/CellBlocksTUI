@@ -55,6 +55,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "p":
 		// Toggle preview pane
 		m.ShowPreview = !m.ShowPreview
+		// When enabling preview, sync previewed card to current selection
+		if m.ShowPreview {
+			m.PreviewedIndex = m.SelectedIndex
+			m.PreviewScrollOffset = 0
+		}
 		return m, nil
 
 	case "g":
@@ -63,6 +68,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ViewMode = ViewList
 		} else {
 			m.ViewMode = ViewGrid
+			// Reset scroll offset when switching to grid view
+			m.ScrollOffset = 0
 		}
 		return m, nil
 
@@ -91,6 +98,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, -1) // Move up one row
 		} else {
 			m.moveSelection(-1)
+			// In list view, update preview as you navigate
+			m.PreviewedIndex = m.SelectedIndex
 		}
 		return m, nil
 
@@ -99,6 +108,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, 1) // Move down one row
 		} else {
 			m.moveSelection(1)
+			// In list view, update preview as you navigate
+			m.PreviewedIndex = m.SelectedIndex
 		}
 		return m, nil
 
@@ -114,23 +125,53 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "shift+up":
+		// Scroll preview up (in grid view with preview)
+		if m.ViewMode == ViewGrid && m.ShowPreview {
+			m.PreviewScrollOffset = max(0, m.PreviewScrollOffset-3)
+		}
+		return m, nil
+
+	case "shift+down":
+		// Scroll preview down (in grid view with preview)
+		if m.ViewMode == ViewGrid && m.ShowPreview {
+			m.PreviewScrollOffset += 3
+		}
+		return m, nil
+
 	case "pageup":
 		m.moveSelection(-m.getVisibleCardCount())
+		// In list view, update preview
+		if m.ViewMode == ViewList {
+			m.PreviewedIndex = m.SelectedIndex
+		}
 		return m, nil
 
 	case "pagedown":
 		m.moveSelection(m.getVisibleCardCount())
+		// In list view, update preview
+		if m.ViewMode == ViewList {
+			m.PreviewedIndex = m.SelectedIndex
+		}
 		return m, nil
 
 	case "home":
 		m.SelectedIndex = 0
 		m.ScrollOffset = 0
+		// In list view, update preview
+		if m.ViewMode == ViewList {
+			m.PreviewedIndex = m.SelectedIndex
+		}
 		return m, nil
 
 	case "end":
 		m.SelectedIndex = max(0, len(m.FilteredCards)-1)
 		visibleCount := m.getVisibleCardCount()
 		m.ScrollOffset = max(0, len(m.FilteredCards)-visibleCount)
+		// In list view, update preview
+		if m.ViewMode == ViewList {
+			m.PreviewedIndex = m.SelectedIndex
+		}
 		return m, nil
 
 	case "enter", "c":
@@ -138,6 +179,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		card := m.getSelectedCard()
 		if card != nil {
 			return m, copyToClipboard(card.Content)
+		}
+		return m, nil
+
+	case " ": // Spacebar
+		// In grid view: pin current selection to preview
+		// In list view: toggle preview (existing behavior handled above by "p")
+		if m.ViewMode == ViewGrid && m.ShowPreview {
+			m.PreviewedIndex = m.SelectedIndex
+			m.PreviewScrollOffset = 0 // Reset scroll when pinning new card
 		}
 		return m, nil
 
