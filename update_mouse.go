@@ -15,42 +15,36 @@ func (m Model) handleMouseEventEnhanced(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	// Handle mouse wheel scrolling
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		// In grid view with preview: check if mouse is over preview pane
-		if m.ViewMode == ViewGrid && m.ShowPreview && m.Width > 120 {
-			// Side-by-side layout: preview is on right side
-			maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
-			gridWidth := min(m.Width/2, maxGridWidth)
-			if msg.X > gridWidth {
-				// Mouse is over preview - scroll preview content
-				m.PreviewScrollOffset = max(0, m.PreviewScrollOffset-3)
-				return m, nil
-			}
+		// Check if mouse is over preview pane
+		if m.ShowPreview && m.isMouseOverPreview(msg) {
+			// Mouse is over preview - scroll preview content
+			m.PreviewScrollOffset = max(0, m.PreviewScrollOffset-3)
+			return m, nil
 		}
 		// Otherwise scroll card list
 		if m.ViewMode == ViewGrid {
 			m.moveSelectionGrid(0, -1) // Move up one row
 		} else {
 			m.moveSelection(-1)
+			// In list view, update preview as you navigate
+			m.PreviewedIndex = m.SelectedIndex
 		}
 		return m, nil
 
 	case tea.MouseButtonWheelDown:
-		// In grid view with preview: check if mouse is over preview pane
-		if m.ViewMode == ViewGrid && m.ShowPreview && m.Width > 120 {
-			// Side-by-side layout: preview is on right side
-			maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
-			gridWidth := min(m.Width/2, maxGridWidth)
-			if msg.X > gridWidth {
-				// Mouse is over preview - scroll preview content
-				m.PreviewScrollOffset += 3
-				return m, nil
-			}
+		// Check if mouse is over preview pane
+		if m.ShowPreview && m.isMouseOverPreview(msg) {
+			// Mouse is over preview - scroll preview content
+			m.PreviewScrollOffset += 3
+			return m, nil
 		}
 		// Otherwise scroll card list
 		if m.ViewMode == ViewGrid {
 			m.moveSelectionGrid(0, 1) // Move down one row
 		} else {
 			m.moveSelection(1)
+			// In list view, update preview as you navigate
+			m.PreviewedIndex = m.SelectedIndex
 		}
 		return m, nil
 
@@ -110,12 +104,13 @@ func (m Model) handleLeftClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 // calculateClickedCardIndex determines which card was clicked based on mouse position
 func (m Model) calculateClickedCardIndex(msg tea.MouseMsg) int {
-	// Header is 3 lines (title + border)
+	// Header is 2 lines (title + border)
 	// Status bar is 2 lines (border + hints)
-	// Total overhead: 5 lines
-	headerOffset := 3
+	// Total overhead: 4 lines
+	headerOffset := 2
 
 	// Check if click is in valid area (below header, above status bar)
+	// headerOffset is 2 (title + border), status bar is 2 (border + content)
 	if msg.Y < headerOffset || msg.Y >= m.Height-2 {
 		return -1
 	}
@@ -251,5 +246,43 @@ func (m *Model) ensureGridSelectionVisible() {
 	}
 	if currentRow >= scrollRow+visibleRows {
 		m.ScrollOffset = (currentRow - visibleRows + 1) * cols
+	}
+}
+
+// isMouseOverPreview checks if the mouse is positioned over the preview pane
+func (m Model) isMouseOverPreview(msg tea.MouseMsg) bool {
+	if !m.ShowPreview {
+		return false
+	}
+
+	headerOffset := 2
+	availableHeight := m.Height - 6 // Header + status bar
+
+	if m.ViewMode == ViewGrid && m.Width > 120 {
+		// Grid view side-by-side: preview is on right side
+		maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
+		actualCols := max(1, min((min(m.Width/2, maxGridWidth))/GridCardTotalWidth, GridMaxColumns))
+		actualGridWidth := actualCols * GridCardTotalWidth
+		// Check if mouse X is to the right of grid (accounting for margin)
+		return msg.X > actualGridWidth+2
+	} else {
+		// Top/bottom layout (both grid and list view): preview is on bottom
+		var contentHeight int
+		if m.ViewMode == ViewGrid {
+			if availableHeight > 50 {
+				contentHeight = availableHeight * 2 / 5 // Grid gets 40%
+			} else {
+				contentHeight = availableHeight / 2
+			}
+		} else {
+			// List view
+			if availableHeight > 50 {
+				contentHeight = availableHeight * 2 / 5 // List gets 40%
+			} else {
+				contentHeight = availableHeight / 2
+			}
+		}
+		// Check if mouse Y is below the content area (in preview area)
+		return msg.Y >= headerOffset+contentHeight
 	}
 }

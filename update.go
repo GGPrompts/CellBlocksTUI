@@ -60,6 +60,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.PreviewedIndex = m.SelectedIndex
 			m.PreviewScrollOffset = 0
 		}
+		// Reset scroll offset in grid view when toggling preview
+		// because available height changes and cards might be off-screen
+		if m.ViewMode == ViewGrid {
+			m.ScrollOffset = 0
+			// Also reset selection to ensure it's visible
+			if m.SelectedIndex >= len(m.FilteredCards) {
+				m.SelectedIndex = max(0, len(m.FilteredCards)-1)
+			}
+		}
 		return m, nil
 
 	case "g":
@@ -126,15 +135,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "shift+up":
-		// Scroll preview up (in grid view with preview)
-		if m.ViewMode == ViewGrid && m.ShowPreview {
+		// Scroll preview up (when preview is shown)
+		if m.ShowPreview {
 			m.PreviewScrollOffset = max(0, m.PreviewScrollOffset-3)
 		}
 		return m, nil
 
 	case "shift+down":
-		// Scroll preview down (in grid view with preview)
-		if m.ViewMode == ViewGrid && m.ShowPreview {
+		// Scroll preview down (when preview is shown)
+		if m.ShowPreview {
 			m.PreviewScrollOffset += 3
 		}
 		return m, nil

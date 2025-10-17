@@ -261,12 +261,26 @@ func renderGridWithPreview(m Model) string {
 	// For narrow screens, do top/bottom
 	if m.Width > 120 {
 		// Side-by-side: grid on left, preview on right
-		// Calculate actual grid width based on max columns to prevent overflow
-		maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2 // Cards + small margin
-		gridWidth := min(m.Width/2, maxGridWidth) // Use 50% or actual needed width, whichever is smaller
-		previewWidth := m.Width - gridWidth - 2   // Subtract margin
+		// Calculate how many columns can actually fit, then use that for width calculations
+		// Start with half the width for the grid area
+		maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
+		gridAreaWidth := min(m.Width/2, maxGridWidth)
 
-		gridView := renderGridCards(m, gridWidth, availableHeight)
+		// Calculate actual columns that will fit in the grid area
+		actualCols := max(1, min(gridAreaWidth/GridCardTotalWidth, GridMaxColumns))
+		actualGridWidth := actualCols * GridCardTotalWidth
+
+		// Preview gets the remaining space
+		// Account for: margin (2) + preview border (2) = 4 total
+		previewWidth := m.Width - actualGridWidth - 4
+
+		// Ensure preview has minimum usable width
+		if previewWidth < 30 {
+			previewWidth = 30
+			actualGridWidth = m.Width - previewWidth - 4
+		}
+
+		gridView := renderGridCards(m, actualGridWidth, availableHeight)
 		previewView := renderPreviewPaneWithWidth(m, availableHeight, previewWidth)
 
 		return lipgloss.JoinHorizontal(lipgloss.Top, gridView, "  ", previewView)
@@ -404,7 +418,7 @@ func renderHelp(m Model) string {
 		styleHelpKey.Render("Navigation:"),
 		"  ↑/k, ↓/j       Navigate cards",
 		"  ←/h, →/l       Navigate left/right (grid view)",
-		"  Shift+↑/↓      Scroll preview content (grid)",
+		"  Shift+↑/↓      Scroll preview content",
 		"  PgUp/PgDn      Scroll by page",
 		"  Home/End       Jump to first/last",
 		"",
