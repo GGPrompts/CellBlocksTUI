@@ -19,8 +19,6 @@ func initialModel() Model {
 		PreviewedIndex:      0,
 		PreviewScrollOffset: 0,
 		ScrollOffset:        0,
-		SearchQuery:         "",
-		SearchMode:          false,
 		SelectedCategories:  make(map[string]bool),
 		ViewMode:            ViewList,
 		ShowPreview:         false,          // Start with preview off for cleaner initial layout
@@ -67,11 +65,6 @@ func (m *Model) updateFilteredCards() {
 	}
 
 	cards := m.Data.Cards
-
-	// Apply search filter
-	if m.SearchQuery != "" {
-		cards = searchCards(cards, m.SearchQuery)
-	}
 
 	// Apply category filter
 	if len(m.SelectedCategories) > 0 {
@@ -247,7 +240,6 @@ func (m *Model) toggleCategory(categoryID string) {
 
 // clearFilters resets all filters
 func (m *Model) clearFilters() {
-	m.SearchQuery = ""
 	m.SelectedCategories = make(map[string]bool)
 	m.updateFilteredCards()
 }

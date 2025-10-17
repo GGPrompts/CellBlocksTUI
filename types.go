@@ -57,8 +57,6 @@ type Model struct {
 	PreviewedIndex     int // Card shown in preview (only updates on click)
 	PreviewScrollOffset int // Scroll position within preview content
 	ScrollOffset       int
-	SearchQuery        string
-	SearchMode         bool            // Whether user is actively typing a search query
 	SelectedCategories map[string]bool // Set of selected category IDs
 
 	// View mode

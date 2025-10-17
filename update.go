@@ -120,11 +120,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ShowHelp = false
 			return m, nil
 		}
-		// Exit search mode if active
-		if m.SearchMode {
-			m.SearchMode = false
-			m.SearchQuery = ""
-			m.updateFilteredCards()
+		// Exit preview pane if active
+		if m.ShowPreview {
+			m.ShowPreview = false
 			return m, nil
 		}
 		// Exit special screens back to main view
@@ -137,39 +135,9 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, nil
-
-	case "s":
-		// Toggle search mode (only in main views, not in special screens)
-		if m.ViewMode == ViewList || m.ViewMode == ViewGrid || m.ViewMode == ViewTable {
-			m.SearchMode = !m.SearchMode
-			if !m.SearchMode {
-				// Exiting search mode, clear query
-				m.SearchQuery = ""
-				m.updateFilteredCards()
-			}
-		}
-		return m, nil
 	}
 
-	// If in search mode, ONLY handle search input - skip all other hotkeys
-	if m.SearchMode {
-		if len(msg.String()) == 1 {
-			m.SearchQuery += msg.String()
-			m.updateFilteredCards()
-			return m, nil
-		}
-
-		if msg.Type == tea.KeyBackspace && len(m.SearchQuery) > 0 {
-			m.SearchQuery = m.SearchQuery[:len(m.SearchQuery)-1]
-			m.updateFilteredCards()
-			return m, nil
-		}
-
-		// In search mode, ignore all other keys
-		return m, nil
-	}
-
-	// Normal mode - process all other hotkeys
+	// Normal mode - process all hotkeys
 	switch msg.String() {
 
 	case "p":
@@ -179,15 +147,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.ShowPreview {
 			m.PreviewedIndex = m.SelectedIndex
 			m.PreviewScrollOffset = 0
-		}
-		// Reset scroll offset in grid view when toggling preview
-		// because available height changes and cards might be off-screen
-		if m.ViewMode == ViewGrid {
-			m.ScrollOffset = 0
-			// Also reset selection to ensure it's visible
-			if m.SelectedIndex >= len(m.FilteredCards) {
-				m.SelectedIndex = max(0, len(m.FilteredCards)-1)
-			}
 		}
 		return m, nil
 
@@ -220,7 +179,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.ViewMode == ViewList || m.ViewMode == ViewGrid || m.ViewMode == ViewTable {
 			m.ViewMode = ViewCategoryFilter
 			m.FilterCursorIndex = 0
-			m.SearchMode = false // Exit search mode when entering filter screen
 		}
 		return m, nil
 
@@ -235,7 +193,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.Data != nil && len(m.Data.Categories) > 0 {
 				m.NewCardCategoryID = m.Data.Categories[0].ID
 			}
-			m.SearchMode = false // Exit search mode when entering card creation
 		}
 		return m, nil
 
@@ -421,8 +378,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if card != nil {
 			m.ViewMode = ViewDetail
 			m.DetailScrollOffset = 0
-			m.SearchQuery = ""  // Clear search when entering detail view
-			m.SearchMode = false // Exit search mode when entering detail view
 			// Detect template variables
 			m.DetectedVars = ExtractVariables(card.Content)
 			// Initialize template vars if we have detected vars
@@ -448,8 +403,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if card != nil {
 			m.ViewMode = ViewDetail
 			m.DetailScrollOffset = 0
-			m.SearchQuery = ""  // Clear search when entering detail view
-			m.SearchMode = false // Exit search mode when entering detail view
 			// Detect template variables
 			m.DetectedVars = ExtractVariables(card.Content)
 			// Initialize template vars if we have detected vars
