@@ -40,6 +40,8 @@ const (
 	ViewList ViewMode = iota
 	ViewGrid
 	ViewDetail
+	ViewCategoryFilter
+	ViewCardCreate
 )
 
 // Model is the main application state (Bubbletea Model)
@@ -62,6 +64,15 @@ type Model struct {
 	ShowPreview bool
 	ShowHelp    bool
 
+	// Category filter screen
+	FilterCursorIndex int // Selected category in filter screen
+
+	// Card creation form
+	NewCardTitle      string
+	NewCardContent    string
+	NewCardCategoryID string
+	CreateFormField   int // 0=title, 1=content, 2=category
+
 	// Template editing
 	TemplateVars map[string]string
 
@@ -75,6 +86,11 @@ type Model struct {
 	// Click tracking for double-click detection
 	LastClickIndex int
 	LastClickTime  time.Time
+
+	// File change detection
+	LastFileModTime time.Time
+	ReloadMessage   string // Message to show when data is reloaded
+	ReloadMessageTime time.Time // When the reload message was shown
 }
 
 // Messages for Bubbletea update loop
@@ -97,4 +113,23 @@ type cardCopiedMsg struct {
 // copyErrorMsg is sent when clipboard copy fails
 type copyErrorMsg struct {
 	err error
+}
+
+// cardSavedMsg is sent when a new card is successfully saved
+type cardSavedMsg struct {
+	card *Card
+}
+
+// cardSaveErrorMsg is sent when card saving fails
+type cardSaveErrorMsg struct {
+	err error
+}
+
+// tickMsg is sent periodically to check for file changes
+type tickMsg struct{}
+
+// fileChangedMsg is sent when the data file has been modified externally
+type fileChangedMsg struct {
+	data    *CellBlocksData
+	newCards int // Number of new cards detected
 }

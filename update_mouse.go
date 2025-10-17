@@ -26,8 +26,8 @@ func (m Model) handleMouseEventEnhanced(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, -1) // Move up one row
 		} else {
 			m.moveSelection(-1)
-			// In list view, update preview as you navigate
-			m.PreviewedIndex = m.SelectedIndex
+			// In list view with preview: keep preview locked (don't update PreviewedIndex)
+			// Preview only updates on keyboard nav, click, or spacebar pin
 		}
 		return m, nil
 
@@ -43,8 +43,8 @@ func (m Model) handleMouseEventEnhanced(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, 1) // Move down one row
 		} else {
 			m.moveSelection(1)
-			// In list view, update preview as you navigate
-			m.PreviewedIndex = m.SelectedIndex
+			// In list view with preview: keep preview locked (don't update PreviewedIndex)
+			// Preview only updates on keyboard nav, click, or spacebar pin
 		}
 		return m, nil
 

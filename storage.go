@@ -1,11 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -84,4 +87,64 @@ func FileExists(path string) bool {
 	fullPath := expandPath(path)
 	_, err := os.Stat(fullPath)
 	return err == nil
+}
+
+// generateCardID creates a unique ID for a new card
+func generateCardID() string {
+	// Generate 16 random bytes (128 bits)
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp-based ID if random fails
+		return fmt.Sprintf("card_%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(bytes)
+}
+
+// GetFileModTime returns the modification time of the data file
+func GetFileModTime(path string) (time.Time, error) {
+	fullPath := expandPath(path)
+	info, err := os.Stat(fullPath)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return info.ModTime(), nil
+}
+
+// checkFileChanges checks if the data file has been modified and reloads if needed
+func checkFileChanges(path string, lastModTime time.Time, currentCardCount int) tea.Cmd {
+	return func() tea.Msg {
+		// Check file modification time
+		modTime, err := GetFileModTime(path)
+		if err != nil {
+			// File doesn't exist or can't be accessed - ignore
+			return nil
+		}
+
+		// If file hasn't changed, return tick to check again later
+		if !modTime.After(lastModTime) {
+			return tickMsg{}
+		}
+
+		// File has changed - reload data
+		data, err := LoadData(path)
+		if err != nil {
+			// Failed to load - return tick to try again later
+			return tickMsg{}
+		}
+
+		// Calculate how many new cards were added
+		newCards := len(data.Cards) - currentCardCount
+
+		return fileChangedMsg{
+			data:     data,
+			newCards: newCards,
+		}
+	}
+}
+
+// startFileTicker starts a periodic ticker to check for file changes
+func startFileTicker() tea.Cmd {
+	return tea.Tick(time.Second*10, func(t time.Time) tea.Msg {
+		return tickMsg{}
+	})
 }

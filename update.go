@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -22,12 +25,72 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Data = msg.data
 		m.buildCategoryMap()
 		m.updateFilteredCards()
-		return m, nil
+		// Get initial file modification time
+		if modTime, err := GetFileModTime(DefaultDataPath); err == nil {
+			m.LastFileModTime = modTime
+		}
+		// Start the file change checker
+		return m, startFileTicker()
 
 	// Data loading failed
 	case dataLoadErrorMsg:
 		m.Error = msg.err
 		return m, nil
+
+	// Card saved successfully
+	case cardSavedMsg:
+		// Refresh the filtered cards to include the new card
+		m.updateFilteredCards()
+		// Update file modification time after save
+		if modTime, err := GetFileModTime(DefaultDataPath); err == nil {
+			m.LastFileModTime = modTime
+		}
+		// Return to list view
+		m.ViewMode = ViewList
+		// Jump to the new card (it should be at the end)
+		if len(m.FilteredCards) > 0 {
+			m.SelectedIndex = len(m.FilteredCards) - 1
+			m.PreviewedIndex = m.SelectedIndex
+			// Scroll to bottom
+			visibleCount := m.getVisibleCardCount()
+			m.ScrollOffset = max(0, len(m.FilteredCards)-visibleCount)
+		}
+		return m, nil
+
+	// Card save failed
+	case cardSaveErrorMsg:
+		m.Error = msg.err
+		return m, nil
+
+	// Periodic tick to check for file changes
+	case tickMsg:
+		if m.Data != nil {
+			return m, checkFileChanges(DefaultDataPath, m.LastFileModTime, len(m.Data.Cards))
+		}
+		return m, startFileTicker()
+
+	// File changed externally - reload data
+	case fileChangedMsg:
+		m.Data = msg.data
+		m.buildCategoryMap()
+		m.updateFilteredCards()
+		// Update file modification time
+		if modTime, err := GetFileModTime(DefaultDataPath); err == nil {
+			m.LastFileModTime = modTime
+		}
+		// Show notification if new cards were added
+		if msg.newCards > 0 {
+			m.ReloadMessage = fmt.Sprintf("✨ %d new card(s) detected!", msg.newCards)
+			m.ReloadMessageTime = time.Now()
+		} else if msg.newCards < 0 {
+			m.ReloadMessage = fmt.Sprintf("🔄 Data reloaded (%d card(s) removed)", -msg.newCards)
+			m.ReloadMessageTime = time.Now()
+		} else {
+			m.ReloadMessage = "🔄 Data reloaded"
+			m.ReloadMessageTime = time.Now()
+		}
+		// Continue checking for changes
+		return m, startFileTicker()
 
 	// Keyboard events
 	case tea.KeyMsg:
@@ -82,9 +145,36 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "f":
+		// Open category filter screen
+		if m.ViewMode == ViewList || m.ViewMode == ViewGrid {
+			m.ViewMode = ViewCategoryFilter
+			m.FilterCursorIndex = 0
+		}
+		return m, nil
+
+	case "n":
+		// Open card creation screen
+		if m.ViewMode == ViewList || m.ViewMode == ViewGrid {
+			m.ViewMode = ViewCardCreate
+			m.CreateFormField = 0
+			m.NewCardTitle = ""
+			m.NewCardContent = ""
+			// Default to first category if available
+			if m.Data != nil && len(m.Data.Categories) > 0 {
+				m.NewCardCategoryID = m.Data.Categories[0].ID
+			}
+		}
+		return m, nil
+
 	case "esc":
 		if m.ShowHelp {
 			m.ShowHelp = false
+			return m, nil
+		}
+		// Exit special screens back to main view
+		if m.ViewMode == ViewCategoryFilter || m.ViewMode == ViewCardCreate {
+			m.ViewMode = ViewList
 			return m, nil
 		}
 		if m.SearchQuery != "" {
@@ -98,6 +188,16 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// If help is shown, don't process other keys
 	if m.ShowHelp {
 		return m, nil
+	}
+
+	// Category filter screen handlers
+	if m.ViewMode == ViewCategoryFilter {
+		return m.handleCategoryFilterInput(msg)
+	}
+
+	// Card creation screen handlers
+	if m.ViewMode == ViewCardCreate {
+		return m.handleCardCreateInput(msg)
 	}
 
 	// Navigation
@@ -216,6 +316,127 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyBackspace && len(m.SearchQuery) > 0 {
 		m.SearchQuery = m.SearchQuery[:len(m.SearchQuery)-1]
 		m.updateFilteredCards()
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleCategoryFilterInput processes input in category filter screen
+func (m Model) handleCategoryFilterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.Data == nil {
+		return m, nil
+	}
+
+	switch msg.String() {
+	case "up", "k":
+		if m.FilterCursorIndex > 0 {
+			m.FilterCursorIndex--
+		}
+		return m, nil
+
+	case "down", "j":
+		if m.FilterCursorIndex < len(m.Data.Categories)-1 {
+			m.FilterCursorIndex++
+		}
+		return m, nil
+
+	case "enter", " ":
+		// Toggle selected category
+		if m.FilterCursorIndex >= 0 && m.FilterCursorIndex < len(m.Data.Categories) {
+			categoryID := m.Data.Categories[m.FilterCursorIndex].ID
+			m.toggleCategory(categoryID)
+		}
+		return m, nil
+
+	case "a":
+		// Select all categories
+		for _, cat := range m.Data.Categories {
+			m.SelectedCategories[cat.ID] = true
+		}
+		m.updateFilteredCards()
+		return m, nil
+
+	case "c":
+		// Clear all filters
+		m.clearFilters()
+		return m, nil
+	}
+
+	return m, nil
+}
+
+// handleCardCreateInput processes input in card creation screen
+func (m Model) handleCardCreateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "tab":
+		// Move to next field
+		m.CreateFormField = (m.CreateFormField + 1) % 3
+		return m, nil
+
+	case "shift+tab":
+		// Move to previous field
+		m.CreateFormField = (m.CreateFormField + 2) % 3 // +2 is same as -1 mod 3
+		return m, nil
+
+	case "ctrl+s", "ctrl+enter":
+		// Save card
+		return m, m.saveNewCard()
+
+	case "backspace":
+		// Delete character from current field
+		switch m.CreateFormField {
+		case 0: // Title
+			if len(m.NewCardTitle) > 0 {
+				m.NewCardTitle = m.NewCardTitle[:len(m.NewCardTitle)-1]
+			}
+		case 1: // Content
+			if len(m.NewCardContent) > 0 {
+				m.NewCardContent = m.NewCardContent[:len(m.NewCardContent)-1]
+			}
+		}
+		return m, nil
+
+	case "enter":
+		// In content field, add newline
+		if m.CreateFormField == 1 {
+			m.NewCardContent += "\n"
+		}
+		return m, nil
+
+	case "up", "k":
+		// In category field, move to previous category
+		if m.CreateFormField == 2 && m.Data != nil {
+			for i, cat := range m.Data.Categories {
+				if cat.ID == m.NewCardCategoryID && i > 0 {
+					m.NewCardCategoryID = m.Data.Categories[i-1].ID
+					break
+				}
+			}
+		}
+		return m, nil
+
+	case "down", "j":
+		// In category field, move to next category
+		if m.CreateFormField == 2 && m.Data != nil {
+			for i, cat := range m.Data.Categories {
+				if cat.ID == m.NewCardCategoryID && i < len(m.Data.Categories)-1 {
+					m.NewCardCategoryID = m.Data.Categories[i+1].ID
+					break
+				}
+			}
+		}
+		return m, nil
+	}
+
+	// Type characters into current field
+	if len(msg.String()) == 1 {
+		switch m.CreateFormField {
+		case 0: // Title
+			m.NewCardTitle += msg.String()
+		case 1: // Content
+			m.NewCardContent += msg.String()
+		}
 		return m, nil
 	}
 

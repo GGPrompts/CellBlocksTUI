@@ -251,3 +251,33 @@ func max(a, b int) int {
 	}
 	return b
 }
+
+// saveNewCard creates a new card and saves it to disk
+func (m *Model) saveNewCard() tea.Cmd {
+	// Validate input
+	if m.NewCardTitle == "" || m.NewCardContent == "" {
+		return nil // TODO: Show error message
+	}
+
+	// Create the new card
+	return func() tea.Msg {
+		newCard := Card{
+			ID:         generateCardID(),
+			Title:      m.NewCardTitle,
+			Content:    m.NewCardContent,
+			CategoryID: m.NewCardCategoryID,
+			CreatedAt:  time.Now().UnixMilli(),
+			UpdatedAt:  time.Now().UnixMilli(),
+		}
+
+		// Add to data
+		m.Data.Cards = append(m.Data.Cards, newCard)
+
+		// Save to disk
+		if err := SaveData(DefaultDataPath, m.Data); err != nil {
+			return cardSaveErrorMsg{err: err}
+		}
+
+		return cardSavedMsg{card: &newCard}
+	}
+}

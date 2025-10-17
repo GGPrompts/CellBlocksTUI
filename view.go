@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -22,6 +23,16 @@ func (m Model) View() string {
 
 	if m.Data == nil {
 		return "Loading cards..."
+	}
+
+	// Category filter screen
+	if m.ViewMode == ViewCategoryFilter {
+		return renderCategoryFilterScreen(m)
+	}
+
+	// Card creation screen
+	if m.ViewMode == ViewCardCreate {
+		return renderCardCreateScreen(m)
 	}
 
 	var sections []string
@@ -49,6 +60,9 @@ func (m Model) View() string {
 
 // renderHeader renders the app title, search box, and card count
 func renderHeader(m Model) string {
+	var headerLines []string
+
+	// Main header line
 	title := styleTitle.Render("CellBlocks TUI")
 
 	// Search query
@@ -57,16 +71,60 @@ func renderHeader(m Model) string {
 		searchText = styleSearchBox.Render(fmt.Sprintf(" Search: %s", m.SearchQuery))
 	}
 
+	// Category filters - mobile-friendly display
+	filterText := ""
+	if len(m.SelectedCategories) > 0 {
+		// On narrow screens (< 80 chars), just show count
+		// On wider screens, show first 2 categories + count
+		if m.Width < 80 {
+			filterText = styleSearchBox.Render(fmt.Sprintf(" Filters: %d", len(m.SelectedCategories)))
+		} else {
+			// Collect all category names and sort them for stable display
+			var catNames []string
+			for catID := range m.SelectedCategories {
+				if cat, ok := m.CategoryMap[catID]; ok {
+					catNames = append(catNames, cat.Name)
+				}
+			}
+			// Sort alphabetically to prevent flickering
+			sortStrings(catNames)
+
+			// Show first 2 category names
+			var displayNames []string
+			for i := 0; i < len(catNames) && i < 2; i++ {
+				displayNames = append(displayNames, catNames[i])
+			}
+
+			remaining := len(catNames) - len(displayNames)
+			if remaining > 0 {
+				filterText = styleSearchBox.Render(fmt.Sprintf(" Filters: %s +%d", strings.Join(displayNames, ", "), remaining))
+			} else {
+				filterText = styleSearchBox.Render(fmt.Sprintf(" Filters: %s", strings.Join(displayNames, ", ")))
+			}
+		}
+	}
+
 	// Card count
 	count := styleSubtle.Render(fmt.Sprintf("[%d/%d]", len(m.FilteredCards), len(m.Data.Cards)))
 
-	header := lipgloss.JoinHorizontal(lipgloss.Top,
+	mainLine := lipgloss.JoinHorizontal(lipgloss.Top,
 		title,
 		searchText,
+		filterText,
 		" ",
 		count,
 	)
+	headerLines = append(headerLines, mainLine)
 
+	// Reload notification (show for 5 seconds)
+	if m.ReloadMessage != "" && time.Since(m.ReloadMessageTime) < 5*time.Second {
+		notifStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00ff41")).
+			Bold(true)
+		headerLines = append(headerLines, notifStyle.Render(m.ReloadMessage))
+	}
+
+	header := lipgloss.JoinVertical(lipgloss.Left, headerLines...)
 	return styleHeader.Width(m.Width).Render(header)
 }
 
@@ -386,23 +444,44 @@ func renderPreviewPaneWithWidth(m Model, height int, width int) string {
 func renderStatusBar(m Model) string {
 	var hints []string
 
-	if m.ViewMode == ViewGrid {
+	// Responsive hints based on screen width
+	if m.Width < 60 {
+		// Very narrow (mobile) - show only essentials
 		hints = []string{
-			styleHelpKey.Render("↑↓←→") + styleHelpDesc.Render(" navigate"),
+			styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
+			styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
+			styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+			styleHelpKey.Render("q") + styleHelpDesc.Render(" quit"),
+		}
+	} else if m.Width < 90 {
+		// Narrow - show most important
+		hints = []string{
 			styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
-			styleHelpKey.Render("g") + styleHelpDesc.Render(" list"),
-			styleHelpKey.Render("p") + styleHelpDesc.Render(" preview"),
+			styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
+			styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
 			styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
 			styleHelpKey.Render("q") + styleHelpDesc.Render(" quit"),
 		}
 	} else {
-		hints = []string{
-			styleHelpKey.Render("↑↓") + styleHelpDesc.Render(" navigate"),
-			styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
-			styleHelpKey.Render("g") + styleHelpDesc.Render(" grid"),
-			styleHelpKey.Render("p") + styleHelpDesc.Render(" preview"),
-			styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
-			styleHelpKey.Render("q") + styleHelpDesc.Render(" quit"),
+		// Wide screen - show all hints
+		if m.ViewMode == ViewGrid {
+			hints = []string{
+				styleHelpKey.Render("↑↓←→") + styleHelpDesc.Render(" navigate"),
+				styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
+				styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
+				styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
+				styleHelpKey.Render("g") + styleHelpDesc.Render(" list"),
+				styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+			}
+		} else {
+			hints = []string{
+				styleHelpKey.Render("↑↓") + styleHelpDesc.Render(" navigate"),
+				styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
+				styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
+				styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
+				styleHelpKey.Render("g") + styleHelpDesc.Render(" grid"),
+				styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+			}
 		}
 	}
 
@@ -430,12 +509,20 @@ func renderHelp(m Model) string {
 		"",
 		styleHelpKey.Render("Actions:"),
 		"  Enter, c       Copy card to clipboard",
-		"  Click          Select & pin to preview (grid)",
-		"  Double-click   Copy card to clipboard",
-		"  Mouse wheel    Scroll preview (over preview pane)",
+		"  n              Create new card",
+		"  f              Filter by category",
 		"  /              Clear filters",
 		"  Type...        Search cards",
 		"  Backspace      Delete search character",
+		"",
+		styleHelpKey.Render("Mouse/Touch:"),
+		"  Click          Select & pin to preview (grid)",
+		"  Double-click   Copy card to clipboard",
+		"  Mouse wheel    Scroll preview (over preview pane)",
+		"",
+		styleHelpKey.Render("Auto-Reload:"),
+		"  ✨             Checks for new cards every 10 seconds",
+		"                 (Perfect for AI-generated cards!)",
 		"",
 		styleHelpKey.Render("General:"),
 		"  ?              Toggle this help",
@@ -465,4 +552,188 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// sortStrings sorts a slice of strings in place (simple bubble sort for small lists)
+func sortStrings(s []string) {
+	for i := 0; i < len(s); i++ {
+		for j := i + 1; j < len(s); j++ {
+			if s[i] > s[j] {
+				s[i], s[j] = s[j], s[i]
+			}
+		}
+	}
+}
+
+// renderCategoryFilterScreen renders the category filter selection screen
+func renderCategoryFilterScreen(m Model) string {
+	if m.Data == nil {
+		return "No data loaded"
+	}
+
+	var lines []string
+
+	// Title
+	title := styleTitle.Render("Filter by Category")
+	lines = append(lines, title)
+	lines = append(lines, "")
+
+	// Instructions
+	instructions := styleSubtle.Render("↑↓: Navigate  Space/Enter: Toggle  A: All  C: Clear  Esc: Back")
+	lines = append(lines, instructions)
+	lines = append(lines, "")
+
+	// Category list
+	activeCount := len(m.SelectedCategories)
+	filterInfo := fmt.Sprintf("Active filters: %d", activeCount)
+	if activeCount > 0 {
+		filterInfo = styleSearchBox.Render(filterInfo)
+	} else {
+		filterInfo = styleSubtle.Render(filterInfo)
+	}
+	lines = append(lines, filterInfo)
+	lines = append(lines, "")
+
+	// Render each category
+	for i, cat := range m.Data.Categories {
+		isSelected := m.FilterCursorIndex == i
+		isActive := m.SelectedCategories[cat.ID]
+
+		// Checkbox
+		checkbox := "[ ]"
+		if isActive {
+			checkbox = "[✓]"
+		}
+
+		// Category name with color
+		catName := styleCategoryName(cat.Name, cat.Color)
+
+		// Build line
+		var line string
+		if isSelected {
+			indicator := styleCardTitleSelected.Render(">")
+			line = fmt.Sprintf("%s %s %s", indicator, checkbox, catName)
+			line = styleCardItemSelected.Width(m.Width).Render(line)
+		} else {
+			line = fmt.Sprintf("  %s %s", checkbox, catName)
+		}
+
+		lines = append(lines, line)
+	}
+
+	content := strings.Join(lines, "\n")
+
+	// Center on screen
+	return lipgloss.Place(m.Width, m.Height,
+		lipgloss.Center, lipgloss.Top,
+		content)
+}
+
+// renderCardCreateScreen renders the card creation form
+func renderCardCreateScreen(m Model) string {
+	if m.Data == nil {
+		return "No data loaded"
+	}
+
+	var lines []string
+
+	// Title
+	title := styleTitle.Render("Create New Card")
+	lines = append(lines, title)
+	lines = append(lines, "")
+
+	// Instructions
+	instructions := styleSubtle.Render("Tab: Next field  Ctrl+S: Save  Esc: Cancel")
+	lines = append(lines, instructions)
+	lines = append(lines, "")
+
+	// Field 0: Title
+	titleLabel := "Title:"
+	if m.CreateFormField == 0 {
+		titleLabel = styleSearchBox.Render("→ Title:")
+	}
+	lines = append(lines, titleLabel)
+	titleValue := m.NewCardTitle
+	if titleValue == "" {
+		titleValue = styleSubtle.Render("(enter title)")
+	}
+	if m.CreateFormField == 0 {
+		titleValue = styleCardItemSelected.Render(titleValue + "█") // Show cursor
+	}
+	lines = append(lines, "  "+titleValue)
+	lines = append(lines, "")
+
+	// Field 1: Content
+	contentLabel := "Content:"
+	if m.CreateFormField == 1 {
+		contentLabel = styleSearchBox.Render("→ Content:")
+	}
+	lines = append(lines, contentLabel)
+
+	// Show content (multi-line)
+	contentValue := m.NewCardContent
+	if contentValue == "" {
+		contentValue = styleSubtle.Render("(enter content)")
+		lines = append(lines, "  "+contentValue)
+	} else {
+		// Split by newlines and render
+		contentLines := strings.Split(contentValue, "\n")
+		maxLines := 10 // Limit visible lines
+		for i, line := range contentLines {
+			if i >= maxLines {
+				lines = append(lines, "  "+styleSubtle.Render(fmt.Sprintf("... (%d more lines)", len(contentLines)-maxLines)))
+				break
+			}
+			// Show cursor on last line if focused
+			if m.CreateFormField == 1 && i == len(contentLines)-1 {
+				line = styleCardItemSelected.Render(line + "█")
+			}
+			lines = append(lines, "  "+line)
+		}
+	}
+	lines = append(lines, "")
+
+	// Field 2: Category
+	categoryLabel := "Category:"
+	if m.CreateFormField == 2 {
+		categoryLabel = styleSearchBox.Render("→ Category:")
+	}
+	lines = append(lines, categoryLabel)
+
+	// Show current category selection
+	var selectedCat *Category
+	for _, cat := range m.Data.Categories {
+		if cat.ID == m.NewCardCategoryID {
+			selectedCat = &cat
+			break
+		}
+	}
+	if selectedCat != nil {
+		catDisplay := styleCategoryName(selectedCat.Name, selectedCat.Color)
+		if m.CreateFormField == 2 {
+			catDisplay = styleCardItemSelected.Render(catDisplay + " (↑↓ to change)")
+		}
+		lines = append(lines, "  "+catDisplay)
+	} else {
+		lines = append(lines, "  "+styleSubtle.Render("(no category selected)"))
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, "")
+
+	// Validation hints
+	if m.NewCardTitle == "" || m.NewCardContent == "" {
+		hint := styleError.Render("⚠ Title and content are required")
+		lines = append(lines, hint)
+	} else {
+		hint := styleHelpKey.Render("✓ Ready to save! Press Ctrl+S")
+		lines = append(lines, hint)
+	}
+
+	content := strings.Join(lines, "\n")
+
+	// Center on screen
+	return lipgloss.Place(m.Width, m.Height,
+		lipgloss.Center, lipgloss.Top,
+		content)
 }
