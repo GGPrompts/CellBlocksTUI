@@ -62,6 +62,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Error = msg.err
 		return m, nil
 
+	// Card copied successfully
+	case cardCopiedMsg:
+		m.ReloadMessage = "✓ Copied to clipboard"
+		m.ReloadMessageTime = time.Now()
+		return m, nil
+
+	// Clipboard copy failed
+	case copyErrorMsg:
+		m.Error = msg.err
+		return m, nil
+
 	// Periodic tick to check for file changes
 	case tickMsg:
 		if m.Data != nil {
@@ -378,6 +389,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if card != nil {
 			m.ViewMode = ViewDetail
 			m.DetailScrollOffset = 0
+			m.ShowPreview = false // Disable preview pane when entering detail view
 			// Detect template variables
 			m.DetectedVars = ExtractVariables(card.Content)
 			// Initialize template vars if we have detected vars
@@ -403,6 +415,7 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if card != nil {
 			m.ViewMode = ViewDetail
 			m.DetailScrollOffset = 0
+			m.ShowPreview = false // Disable preview pane when entering detail view
 			// Detect template variables
 			m.DetectedVars = ExtractVariables(card.Content)
 			// Initialize template vars if we have detected vars

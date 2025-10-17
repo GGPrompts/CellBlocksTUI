@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 // styles.go - UI Styling with Lipgloss
@@ -149,17 +150,20 @@ func styleCategoryName(name string, color string) string {
 }
 
 // truncate truncates a string to maxLen and adds "..." if needed
+// Uses display width (not byte length) to handle emojis and wide characters correctly
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	displayWidth := runewidth.StringWidth(s)
+	if displayWidth <= maxLen {
 		return s
 	}
 	if maxLen <= 3 {
-		return s[:maxLen]
+		return runewidth.Truncate(s, maxLen, "")
 	}
-	return s[:maxLen-3] + "..."
+	return runewidth.Truncate(s, maxLen-3, "") + "..."
 }
 
 // wrapText wraps text to fit within maxWidth, returning up to maxLines
+// Uses display width (not byte length) to handle emojis and wide characters correctly
 func wrapText(text string, maxWidth int, maxLines int) []string {
 	words := strings.Fields(text)
 	if len(words) == 0 {
@@ -176,7 +180,7 @@ func wrapText(text string, maxWidth int, maxLines int) []string {
 		}
 		testLine += word
 
-		if len(testLine) > maxWidth {
+		if runewidth.StringWidth(testLine) > maxWidth {
 			if currentLine == "" {
 				// Word is too long, truncate it
 				lines = append(lines, truncate(word, maxWidth))

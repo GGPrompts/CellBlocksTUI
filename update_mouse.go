@@ -138,6 +138,9 @@ func (m Model) calculateClickedCardIndex(msg tea.MouseMsg) int {
 
 	if m.ViewMode == ViewGrid {
 		return m.calculateGridClickIndex(msg, headerOffset)
+	} else if m.ViewMode == ViewTable {
+		// Table view has 2 extra lines (header + separator) that we need to account for
+		return m.calculateTableClickIndex(msg, headerOffset)
 	} else {
 		return m.calculateListClickIndex(msg, headerOffset)
 	}
@@ -167,6 +170,42 @@ func (m Model) calculateListClickIndex(msg tea.MouseMsg, headerOffset int) int {
 
 	// Calculate the card index accounting for scroll offset
 	clickedIndex := m.ScrollOffset + clickedLine
+
+	// Validate bounds
+	if clickedIndex >= len(m.FilteredCards) {
+		return -1
+	}
+
+	return clickedIndex
+}
+
+// calculateTableClickIndex calculates which card was clicked in table view
+func (m Model) calculateTableClickIndex(msg tea.MouseMsg, headerOffset int) int {
+	// Table view has 2 extra lines at the top: header row + separator
+	// These come before the data rows
+	tableHeaderLines := 2
+
+	// Calculate which line was clicked (relative to table start)
+	clickedLine := msg.Y - headerOffset
+
+	// Check if click is on the table header or separator (not a data row)
+	if clickedLine < tableHeaderLines {
+		return -1
+	}
+
+	// Subtract the table header lines to get the data row index
+	dataRowIndex := clickedLine - tableHeaderLines
+
+	// Calculate available height for table rows
+	availableHeight := m.Height - 6 - tableHeaderLines // Header + status bar + table header
+
+	// Check if click is within table data area
+	if dataRowIndex < 0 || dataRowIndex >= availableHeight {
+		return -1
+	}
+
+	// Calculate the card index accounting for scroll offset
+	clickedIndex := m.ScrollOffset + dataRowIndex
 
 	// Validate bounds
 	if clickedIndex >= len(m.FilteredCards) {

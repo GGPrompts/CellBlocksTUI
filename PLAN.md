@@ -656,6 +656,18 @@ tmux new -s cellblocks \; \
 3. **Favorites System** - Star frequently used cards
 4. **Card Deletion** - Delete cards from TUI
 
+**Development Improvements (TODO - 2025-10-18)**:
+- [ ] **Terminal Monitoring for TUI Development**
+  - Investigate MCP solutions for real-time terminal output monitoring
+  - Similar to VS Code Copilot's terminal integration
+  - Options to explore:
+    - Custom MCP server for process monitoring
+    - Log file watching with tail -f integration
+    - Background bash shells with polling via BashOutput tool
+    - TUI screenshot capture (timg or terminal buffer snapshots)
+  - Would dramatically improve debugging workflow for TUI apps
+  - Consider adding structured logging to file for AI assistant analysis
+
 **Performance Metrics**:
 - Binary size: ~5MB
 - Memory usage: ~10-12MB

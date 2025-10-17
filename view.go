@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 // view.go - UI Rendering
@@ -64,7 +65,16 @@ func (m Model) View() string {
 	// Status bar
 	sections = append(sections, renderStatusBar(m))
 
-	return lipgloss.JoinVertical(lipgloss.Left, sections...)
+	// Join all sections and ensure they fill the screen height to prevent ghosting
+	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
+
+	// Use Place to ensure content fills entire screen and clears any previous render artifacts
+	return lipgloss.Place(m.Width, m.Height,
+		lipgloss.Left, lipgloss.Top,
+		content,
+		lipgloss.WithWhitespaceChars(" "),
+		lipgloss.WithWhitespaceForeground(lipgloss.NoColor{}),
+	)
 }
 
 // renderHeader renders the app title, search box, and card count
@@ -177,7 +187,7 @@ func renderCardListItem(m Model, card *Card, selected bool) string {
 	// Title
 	title := card.Title
 	maxTitleLen := m.Width - 20 // Leave space for category badge
-	if len(title) > maxTitleLen {
+	if runewidth.StringWidth(title) > maxTitleLen {
 		title = truncate(title, maxTitleLen)
 	}
 
@@ -356,6 +366,13 @@ func renderGridWithPreview(m Model) string {
 		}
 
 		gridView := renderGridCards(m, m.Width, gridHeight)
+
+		// Ensure grid fills allocated space to prevent preview showing through
+		gridStyle := lipgloss.NewStyle().
+			Height(gridHeight).
+			Width(m.Width)
+		gridView = gridStyle.Render(gridView)
+
 		previewView := renderPreviewPane(m, previewHeight)
 
 		return lipgloss.JoinVertical(lipgloss.Left, gridView, previewView)
@@ -408,9 +425,9 @@ func renderTableView(m Model) string {
 	createdHeader = padOrTruncate(createdHeader, createdWidth)
 	updatedHeader = padOrTruncate(updatedHeader, updatedWidth)
 
-	// Style the header
+	// Style the header (with 2-space indent to match data rows)
 	headerRow := styleTableHeader.Render(
-		fmt.Sprintf("%s │ %s │ %s │ %s",
+		fmt.Sprintf("  %s │ %s │ %s │ %s",
 			titleHeader,
 			categoryHeader,
 			createdHeader,
@@ -418,8 +435,8 @@ func renderTableView(m Model) string {
 		),
 	)
 
-	// Separator line
-	separator := strings.Repeat("─", titleWidth) + "─┼─" +
+	// Separator line (with 2-space indent to match data rows)
+	separator := "  " + strings.Repeat("─", titleWidth) + "─┼─" +
 		strings.Repeat("─", categoryWidth) + "─┼─" +
 		strings.Repeat("─", createdWidth) + "─┼─" +
 		strings.Repeat("─", updatedWidth)
@@ -482,14 +499,23 @@ func renderTableView(m Model) string {
 }
 
 // padOrTruncate pads a string to the specified width or truncates if too long
+// Uses display width (not byte length) to handle emojis and wide characters correctly
 func padOrTruncate(s string, width int) string {
-	if len(s) > width {
+	displayWidth := runewidth.StringWidth(s)
+
+	if displayWidth > width {
 		if width <= 3 {
-			return s[:width]
+			return runewidth.Truncate(s, width, "")
 		}
-		return s[:width-3] + "..."
+		return runewidth.Truncate(s, width-3, "") + "..."
 	}
-	return s + strings.Repeat(" ", width-len(s))
+
+	// Pad with spaces to reach the target width
+	padding := width - displayWidth
+	if padding > 0 {
+		return s + strings.Repeat(" ", padding)
+	}
+	return s
 }
 
 // renderPreviewPane renders the selected card's full content
