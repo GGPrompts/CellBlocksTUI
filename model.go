@@ -20,6 +20,7 @@ func initialModel() Model {
 		PreviewScrollOffset: 0,
 		ScrollOffset:        0,
 		SearchQuery:         "",
+		SearchMode:          false,
 		SelectedCategories:  make(map[string]bool),
 		ViewMode:            ViewList,
 		ShowPreview:         false,          // Start with preview off for cleaner initial layout

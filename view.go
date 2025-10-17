@@ -74,9 +74,13 @@ func renderHeader(m Model) string {
 	// Main header line
 	title := styleTitle.Render("CellBlocks TUI")
 
-	// Search query
+	// Search query with mode indicator
 	searchText := ""
-	if m.SearchQuery != "" {
+	if m.SearchMode {
+		// Active search mode - show cursor
+		searchText = styleSearchBox.Render(fmt.Sprintf(" Search: %s█", m.SearchQuery))
+	} else if m.SearchQuery != "" {
+		// Passive - show results without cursor
 		searchText = styleSearchBox.Render(fmt.Sprintf(" Search: %s", m.SearchQuery))
 	}
 
@@ -145,7 +149,7 @@ func renderListView(m Model) string {
 // renderListViewWithHeight renders list with explicit height
 func renderListViewWithHeight(m Model, availableHeight int) string {
 	if len(m.FilteredCards) == 0 {
-		return styleSubtle.Render("No cards found. Press '/' to clear filters or type to search.")
+		return styleSubtle.Render("No cards found. Press 's' to search or 'f' to filter.")
 	}
 
 	visibleCount := max(1, availableHeight)
@@ -243,7 +247,7 @@ func renderGridView(m Model) string {
 	}
 
 	if len(m.FilteredCards) == 0 {
-		return styleSubtle.Render("No cards found. Press '/' to clear filters or type to search.")
+		return styleSubtle.Render("No cards found. Press 's' to search or 'f' to filter.")
 	}
 
 	return renderGridCards(m, m.Width, m.Height-6)
@@ -372,7 +376,7 @@ func renderGridWithPreview(m Model) string {
 // renderTableView renders cards in an Excel-style table with sortable columns
 func renderTableView(m Model) string {
 	if len(m.FilteredCards) == 0 {
-		return styleSubtle.Render("No cards found. Press '/' to clear filters or type to search.")
+		return styleSubtle.Render("No cards found. Press 's' to search or 'f' to filter.")
 	}
 
 	// Sort cards based on current sort column and direction
@@ -673,9 +677,9 @@ func renderHelp(m Model) string {
 		"  c              Copy card to clipboard",
 		"  n              Create new card",
 		"  f              Filter by category",
-		"  /              Clear filters",
-		"  Type...        Search cards",
-		"  Backspace      Delete search character",
+		"  s              Enter search mode (type to search, Esc to exit)",
+		"  Type...        Search cards (when in search mode)",
+		"  Backspace      Delete search character (when in search mode)",
 		"",
 		styleHelpKey.Render("Detail View:"),
 		"  ↑/↓, k/j       Scroll content",
@@ -783,9 +787,10 @@ func renderCategoryFilterScreen(m Model) string {
 		if isSelected {
 			indicator := styleCardTitleSelected.Render(">")
 			line = fmt.Sprintf("%s %s %s", indicator, checkbox, catName)
-			line = styleCardItemSelected.Width(m.Width).Render(line)
+			line = styleCardItemSelected.Render(line)
 		} else {
 			line = fmt.Sprintf("  %s %s", checkbox, catName)
+			line = styleCardItem.Render(line)
 		}
 
 		lines = append(lines, line)

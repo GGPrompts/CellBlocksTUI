@@ -58,6 +58,7 @@ type Model struct {
 	PreviewScrollOffset int // Scroll position within preview content
 	ScrollOffset       int
 	SearchQuery        string
+	SearchMode         bool            // Whether user is actively typing a search query
 	SelectedCategories map[string]bool // Set of selected category IDs
 
 	// View mode
