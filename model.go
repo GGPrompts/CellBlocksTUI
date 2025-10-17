@@ -22,9 +22,14 @@ func initialModel() Model {
 		SearchQuery:         "",
 		SelectedCategories:  make(map[string]bool),
 		ViewMode:            ViewList,
-		ShowPreview:         false, // Start with preview off for cleaner initial layout
+		ShowPreview:         false,          // Start with preview off for cleaner initial layout
 		ShowHelp:            false,
+		UseMarkdownRender:   true,           // Enable markdown by default (cards have markdown)
+		DetailScrollOffset:  0,
 		TemplateVars:        make(map[string]string),
+		DetectedVars:        []string{},
+		TemplateFormField:   0,
+		ShowTemplateForm:    false,
 		Width:               80,
 		Height:              24,
 		Error:               nil,

@@ -12,6 +12,27 @@ import (
 
 // handleMouseEventEnhanced processes all mouse input with click and gesture detection
 func (m Model) handleMouseEventEnhanced(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	// Handle ViewDetail mode separately (support scrolling content)
+	if m.ViewMode == ViewDetail {
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.DetailScrollOffset = max(0, m.DetailScrollOffset-3)
+			return m, nil
+		case tea.MouseButtonWheelDown:
+			// Only scroll if there's more content below
+			// This will be bounds-checked in the render function
+			m.DetailScrollOffset += 3
+			return m, nil
+		}
+		// Ignore other mouse events in detail view
+		return m, nil
+	}
+
+	// Don't process mouse events in filter/create screens
+	if m.ViewMode == ViewCategoryFilter || m.ViewMode == ViewCardCreate {
+		return m, nil
+	}
+
 	// Handle mouse wheel scrolling
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:

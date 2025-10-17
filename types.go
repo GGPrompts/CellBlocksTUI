@@ -60,9 +60,11 @@ type Model struct {
 	SelectedCategories map[string]bool // Set of selected category IDs
 
 	// View mode
-	ViewMode    ViewMode
-	ShowPreview bool
-	ShowHelp    bool
+	ViewMode           ViewMode
+	ShowPreview        bool
+	ShowHelp           bool
+	UseMarkdownRender  bool // Toggle markdown rendering in preview/detail
+	DetailScrollOffset int  // Scroll position within detail view
 
 	// Category filter screen
 	FilterCursorIndex int // Selected category in filter screen
@@ -74,7 +76,10 @@ type Model struct {
 	CreateFormField   int // 0=title, 1=content, 2=category
 
 	// Template editing
-	TemplateVars map[string]string
+	TemplateVars      map[string]string // Variable name -> user input value
+	DetectedVars      []string          // Variables detected in current card
+	TemplateFormField int               // Currently focused template input field
+	ShowTemplateForm  bool              // Whether template form is visible in detail view
 
 	// Terminal size
 	Width  int

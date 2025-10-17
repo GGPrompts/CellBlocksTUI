@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -33,6 +34,11 @@ func (m Model) View() string {
 	// Card creation screen
 	if m.ViewMode == ViewCardCreate {
 		return renderCardCreateScreen(m)
+	}
+
+	// Detail view (full-screen card)
+	if m.ViewMode == ViewDetail {
+		return renderDetailView(m)
 	}
 
 	var sections []string
@@ -391,6 +397,12 @@ func renderPreviewPaneWithWidth(m Model, height int, width int) string {
 
 	// Content - use almost all available space
 	content := card.Content
+
+	// Render with markdown if enabled
+	if m.UseMarkdownRender {
+		content = renderMarkdown(content, width-4)
+	}
+
 	// More accurate calculation: border (2) + title (1) + blank line (1) + padding (2) = 6 total
 	// But the Height() call already accounts for border, so we only need to subtract inner elements
 	maxLines := height - 4 // Just title, blank line, and inner padding
@@ -508,12 +520,21 @@ func renderHelp(m Model) string {
 		"  Space          Pin card to preview (grid view)",
 		"",
 		styleHelpKey.Render("Actions:"),
-		"  Enter, c       Copy card to clipboard",
+		"  Enter, d       Open card in detail view",
+		"  c              Copy card to clipboard",
 		"  n              Create new card",
 		"  f              Filter by category",
 		"  /              Clear filters",
 		"  Type...        Search cards",
 		"  Backspace      Delete search character",
+		"",
+		styleHelpKey.Render("Detail View:"),
+		"  ↑/↓, k/j       Scroll content",
+		"  m              Toggle markdown rendering",
+		"  t              Toggle template form (if templates detected)",
+		"  Tab            Navigate template fields",
+		"  Enter, c       Copy (filled template if editing)",
+		"  Esc            Return to list/grid view",
 		"",
 		styleHelpKey.Render("Mouse/Touch:"),
 		"  Click          Select & pin to preview (grid)",
@@ -736,4 +757,249 @@ func renderCardCreateScreen(m Model) string {
 	return lipgloss.Place(m.Width, m.Height,
 		lipgloss.Center, lipgloss.Top,
 		content)
+}
+
+// renderDetailView renders full-screen card view with markdown and templates
+func renderDetailView(m Model) string {
+	card := m.getSelectedCard()
+	if card == nil {
+		return styleSubtle.Render("No card selected. Press Esc to return.")
+	}
+
+	// Get category
+	cat := m.getCategoryForCard(card)
+	categoryName := ""
+	categoryColor := ""
+	if cat != nil {
+		categoryName = cat.Name
+		categoryColor = cat.Color
+	}
+
+	var lines []string
+
+	// Header: Title + Category + Markdown indicator + separator
+	title := stylePreviewTitle.Render(card.Title)
+	category := styleCategoryName(categoryName, categoryColor)
+
+	var mdIndicator string
+	if m.UseMarkdownRender {
+		mdIndicator = styleSearchBox.Render(" [MD] ")
+	} else {
+		mdIndicator = styleSubtle.Render(" [TXT] ")
+	}
+
+	header := lipgloss.JoinHorizontal(lipgloss.Left, title, "  ", category, mdIndicator)
+
+	separator := strings.Repeat("─", m.Width-4)
+
+	lines = append(lines, header)
+	lines = append(lines, separator)
+	lines = append(lines, "")
+
+	// Available height for content and template form
+	// Header (title + separator + blank = 3) + footer (blank + footer = 2) = 5 lines total
+	availableHeight := m.Height - 5
+
+	// Render content with optional markdown
+	content := card.Content
+	var renderedContent string
+
+	// Use most of screen width (leave margin)
+	contentWidth := m.Width - 8
+
+	if m.UseMarkdownRender {
+		// Render markdown using glamour
+		renderedContent = renderMarkdown(content, contentWidth)
+	} else {
+		renderedContent = content
+	}
+
+	// Check for template variables
+	hasTemplates := HasTemplateVariables(content)
+
+	// Split available space between content and template form
+	var contentHeight int
+	var templateHeight int
+
+	if hasTemplates && m.ShowTemplateForm {
+		// Calculate heights based on number of variables
+		numVars := len(m.DetectedVars)
+		// Template form needs: header (1) + blank (1) + vars (n*2) + blank (1) + preview header (1) + preview (3) = 7 + n*2
+		templateFormLines := 7 + numVars*2
+		templateHeight = min(templateFormLines, availableHeight/2)
+		contentHeight = availableHeight - templateHeight
+	} else {
+		contentHeight = availableHeight
+		templateHeight = 0
+	}
+
+	// Render scrollable content
+	contentLines := strings.Split(renderedContent, "\n")
+	totalLines := len(contentLines)
+
+	maxContentLines := max(3, contentHeight)
+
+	// Calculate maximum scroll offset (don't scroll past the end)
+	maxScroll := max(0, totalLines-maxContentLines)
+
+	// Clamp scroll offset to valid range
+	startLine := m.DetailScrollOffset
+	if startLine > maxScroll {
+		startLine = maxScroll
+	}
+	if startLine < 0 {
+		startLine = 0
+	}
+
+	endLine := min(startLine+maxContentLines, totalLines)
+
+	// Handle case where content fits entirely on screen
+	if totalLines <= maxContentLines {
+		startLine = 0
+		endLine = totalLines
+	}
+
+	visibleLines := contentLines[startLine:endLine]
+
+	// Add scroll indicators
+	scrollInfo := ""
+	if startLine > 0 {
+		scrollInfo = styleSubtle.Render(fmt.Sprintf("▲ Line %d/%d", startLine+1, totalLines))
+	}
+	if endLine < totalLines {
+		if scrollInfo != "" {
+			scrollInfo += " "
+		}
+		scrollInfo += styleSubtle.Render("▼ Scroll with ↑↓")
+	}
+
+	if scrollInfo != "" {
+		visibleLines = append(visibleLines, "", scrollInfo)
+	}
+
+	lines = append(lines, visibleLines...)
+
+	// Template form (if applicable)
+	if hasTemplates && m.ShowTemplateForm {
+		lines = append(lines, "")
+		lines = append(lines, renderTemplateForm(m, card))
+	}
+
+	// Footer/instructions
+	footer := buildDetailFooter(m, hasTemplates)
+	lines = append(lines, "", footer)
+
+	finalContent := strings.Join(lines, "\n")
+
+	// Use full screen like other full-screen views
+	return lipgloss.Place(m.Width, m.Height,
+		lipgloss.Left, lipgloss.Top,
+		finalContent)
+}
+
+// renderTemplateForm renders the template variable input form
+func renderTemplateForm(m Model, card *Card) string {
+	var lines []string
+
+	// Title
+	lines = append(lines, styleHelpKey.Render("Template Variables:"))
+	lines = append(lines, "")
+
+	// Render input fields for each variable
+	for i, varName := range m.DetectedVars {
+		isSelected := m.TemplateFormField == i
+
+		// Label
+		label := varName + ":"
+		if isSelected {
+			label = styleSearchBox.Render("→ " + label)
+		} else {
+			label = "  " + label
+		}
+
+		// Value
+		value := m.TemplateVars[varName]
+		if value == "" {
+			value = styleSubtle.Render("(enter value)")
+		}
+		if isSelected {
+			value = styleCardItemSelected.Render(value + "█")
+		}
+
+		lines = append(lines, label)
+		lines = append(lines, "  "+value)
+	}
+
+	// Preview of filled template
+	lines = append(lines, "")
+	lines = append(lines, styleHelpKey.Render("Preview:"))
+	filledContent := FillTemplate(card.Content, m.TemplateVars)
+
+	// Show first few lines of filled content
+	previewLines := strings.Split(filledContent, "\n")
+	maxPreview := min(3, len(previewLines))
+	for i := 0; i < maxPreview; i++ {
+		lines = append(lines, stylePreviewContent.Render(previewLines[i]))
+	}
+	if len(previewLines) > maxPreview {
+		lines = append(lines, styleSubtle.Render("..."))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// buildDetailFooter creates the footer with keyboard shortcuts
+func buildDetailFooter(m Model, hasTemplates bool) string {
+	var hints []string
+
+	if hasTemplates && m.ShowTemplateForm {
+		hints = []string{
+			styleHelpKey.Render("Tab") + styleHelpDesc.Render(" next field"),
+			styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy filled"),
+			styleHelpKey.Render("t") + styleHelpDesc.Render(" hide form"),
+		}
+	} else if hasTemplates {
+		hints = []string{
+			styleHelpKey.Render("t") + styleHelpDesc.Render(" show template form"),
+			styleHelpKey.Render("c") + styleHelpDesc.Render(" copy"),
+		}
+	} else {
+		hints = []string{
+			styleHelpKey.Render("c") + styleHelpDesc.Render(" copy"),
+		}
+	}
+
+	// Common shortcuts
+	if m.UseMarkdownRender {
+		hints = append(hints, styleHelpKey.Render("m") + styleHelpDesc.Render(" plain text"))
+	} else {
+		hints = append(hints, styleHelpKey.Render("m") + styleHelpDesc.Render(" markdown"))
+	}
+
+	hints = append(hints, styleHelpKey.Render("Esc") + styleHelpDesc.Render(" back"))
+
+	return strings.Join(hints, "  ")
+}
+
+// renderMarkdown uses glamour to render markdown content
+func renderMarkdown(content string, width int) string {
+	// Create a new glamour renderer with dark style
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		// Fallback to plain text if glamour fails
+		return content
+	}
+
+	// Render the markdown
+	rendered, err := r.Render(content)
+	if err != nil {
+		// Fallback to plain text on error
+		return content
+	}
+
+	// Trim trailing newlines that glamour adds
+	return strings.TrimRight(rendered, "\n")
 }

@@ -212,17 +212,19 @@ const (
 
 **Deliverable**: ✅ Full CRUD operations + auto-sync
 
-### Phase 3: Template Support (Next!)
+### Phase 3: Template Support ✅ COMPLETE!
 
 **Goal**: Fill in template variables
 
-- [ ] Detect {{variable}} syntax
-- [ ] Show input fields for variables
-- [ ] Real-time template preview
-- [ ] Copy filled template to clipboard
-- [ ] Save filled values for reuse
+- [x] Detect {{variable}} syntax
+- [x] Show input fields for variables
+- [x] Real-time template preview
+- [x] Copy filled template to clipboard
+- [x] Save filled values for reuse
+- [x] Full-screen detail view with markdown rendering
+- [x] Support for default values {{var|default}}
 
-**Deliverable**: Interactive template filling like React version
+**Deliverable**: ✅ Interactive template filling with ViewDetail mode!
 
 ### Phase 4: Enhanced Termux Integration (Future)
 
@@ -613,7 +615,7 @@ tmux new -s cellblocks \; \
 
 ---
 
-**Status**: ✅ Phase 2 Complete - Production Ready!
+**Status**: ✅ Phase 3 Complete - Template Support Ready!
 
 **Completed**:
 - ✅ Phase 1: Core Functionality (100%)
@@ -623,6 +625,12 @@ tmux new -s cellblocks \; \
   - Auto-reload
   - Mobile optimizations
   - Bug fixes
+- ✅ Phase 3: Template Support (100%)
+  - Full-screen ViewDetail mode
+  - Glamour markdown rendering
+  - Template variable detection and filling
+  - Interactive template form
+  - Real-time preview
 
 **What's Working**:
 - 234+ cards tested from real cellblocks-data.json
@@ -635,12 +643,18 @@ tmux new -s cellblocks \; \
 - Multi-platform clipboard (Termux/Linux/macOS/Windows)
 - Mobile-responsive design (60-120+ char widths)
 - Grid and list views with adaptive layouts
+- **NEW**: Full-screen detail view (Enter or 'd' key)
+- **NEW**: Markdown rendering with Glamour (toggle with 'm')
+- **NEW**: Template variable detection ({{variable}} and {{var|default}})
+- **NEW**: Interactive template form with Tab navigation
+- **NEW**: Real-time filled template preview
+- **NEW**: Copy filled templates to clipboard
 
 **Next Steps**:
-1. **Phase 3: Template Support** - Implement {{variable}} detection and filling
-2. **Phase 4: Enhanced Termux** - Add share, notifications, toasts
-3. **Card Editing** - Edit existing cards from TUI
-4. **Favorites System** - Star frequently used cards
+1. **Phase 4: Enhanced Termux** - Add share, notifications, toasts
+2. **Card Editing** - Edit existing cards from TUI
+3. **Favorites System** - Star frequently used cards
+4. **Card Deletion** - Delete cards from TUI
 
 **Performance Metrics**:
 - Binary size: ~5MB

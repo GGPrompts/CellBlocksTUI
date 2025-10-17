@@ -134,6 +134,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "m":
+		// Toggle markdown rendering (works in list/grid view with preview, and detail view)
+		if m.ViewMode == ViewList || m.ViewMode == ViewGrid || m.ViewMode == ViewDetail {
+			m.UseMarkdownRender = !m.UseMarkdownRender
+		}
+		return m, nil
+
 	case "g":
 		// Toggle between list and grid view
 		if m.ViewMode == ViewGrid {
@@ -173,7 +180,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		// Exit special screens back to main view
-		if m.ViewMode == ViewCategoryFilter || m.ViewMode == ViewCardCreate {
+		if m.ViewMode == ViewCategoryFilter || m.ViewMode == ViewCardCreate || m.ViewMode == ViewDetail {
+			// Reset detail view state when exiting detail mode
+			m.DetailScrollOffset = 0
+			m.ShowTemplateForm = false
+			// Return to list view
 			m.ViewMode = ViewList
 			return m, nil
 		}
@@ -198,6 +209,11 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Card creation screen handlers
 	if m.ViewMode == ViewCardCreate {
 		return m.handleCardCreateInput(msg)
+	}
+
+	// Detail view handlers
+	if m.ViewMode == ViewDetail {
+		return m.handleDetailViewInput(msg)
 	}
 
 	// Navigation
@@ -283,11 +299,45 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "enter", "c":
+	case "enter":
+		// Enter detail view for selected card
+		card := m.getSelectedCard()
+		if card != nil {
+			m.ViewMode = ViewDetail
+			m.DetailScrollOffset = 0
+			// Detect template variables
+			m.DetectedVars = ExtractVariables(card.Content)
+			// Initialize template vars if we have detected vars
+			if len(m.DetectedVars) > 0 && m.TemplateVars == nil {
+				m.TemplateVars = make(map[string]string)
+			}
+			// Auto-show template form if variables detected
+			m.ShowTemplateForm = len(m.DetectedVars) > 0
+		}
+		return m, nil
+
+	case "c":
 		// Copy selected card to clipboard
 		card := m.getSelectedCard()
 		if card != nil {
 			return m, copyToClipboard(card.Content)
+		}
+		return m, nil
+
+	case "d":
+		// Also enter detail view (alternative to Enter)
+		card := m.getSelectedCard()
+		if card != nil {
+			m.ViewMode = ViewDetail
+			m.DetailScrollOffset = 0
+			// Detect template variables
+			m.DetectedVars = ExtractVariables(card.Content)
+			// Initialize template vars if we have detected vars
+			if len(m.DetectedVars) > 0 && m.TemplateVars == nil {
+				m.TemplateVars = make(map[string]string)
+			}
+			// Auto-show template form if variables detected
+			m.ShowTemplateForm = len(m.DetectedVars) > 0
 		}
 		return m, nil
 
@@ -456,3 +506,99 @@ func (m Model) handleCardCreateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // 	}
 // 	return m, nil
 // }
+
+// handleDetailViewInput processes input in detail view mode
+func (m Model) handleDetailViewInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	card := m.getSelectedCard()
+	if card == nil {
+		return m, nil
+	}
+
+	switch msg.String() {
+	case "up", "k":
+		// Scroll content up
+		m.DetailScrollOffset = max(0, m.DetailScrollOffset-1)
+		return m, nil
+
+	case "down", "j":
+		// Scroll content down
+		m.DetailScrollOffset++
+		return m, nil
+
+	case "pageup":
+		// Scroll up by page
+		m.DetailScrollOffset = max(0, m.DetailScrollOffset-10)
+		return m, nil
+
+	case "pagedown":
+		// Scroll down by page
+		m.DetailScrollOffset += 10
+		return m, nil
+
+	case "t":
+		// Toggle template form visibility
+		if len(m.DetectedVars) > 0 {
+			m.ShowTemplateForm = !m.ShowTemplateForm
+			if m.ShowTemplateForm {
+				m.TemplateFormField = 0 // Reset to first field
+			}
+		}
+		return m, nil
+
+	case "c":
+		// Copy card content (or filled template if form is shown)
+		var contentToCopy string
+		if m.ShowTemplateForm && len(m.DetectedVars) > 0 {
+			// Copy filled template
+			contentToCopy = FillTemplate(card.Content, m.TemplateVars)
+		} else {
+			// Copy raw content
+			contentToCopy = card.Content
+		}
+		return m, copyToClipboard(contentToCopy)
+
+	case "enter":
+		// Copy filled template (if template form is shown)
+		if m.ShowTemplateForm && len(m.DetectedVars) > 0 {
+			contentToCopy := FillTemplate(card.Content, m.TemplateVars)
+			return m, copyToClipboard(contentToCopy)
+		}
+		// Otherwise, just copy raw content
+		return m, copyToClipboard(card.Content)
+
+	case "tab":
+		// Navigate to next template field (if template form is shown)
+		if m.ShowTemplateForm && len(m.DetectedVars) > 0 {
+			m.TemplateFormField = (m.TemplateFormField + 1) % len(m.DetectedVars)
+		}
+		return m, nil
+
+	case "shift+tab":
+		// Navigate to previous template field
+		if m.ShowTemplateForm && len(m.DetectedVars) > 0 {
+			m.TemplateFormField = (m.TemplateFormField - 1 + len(m.DetectedVars)) % len(m.DetectedVars)
+		}
+		return m, nil
+
+	case "backspace":
+		// Delete character from current template field
+		if m.ShowTemplateForm && len(m.DetectedVars) > 0 && m.TemplateFormField < len(m.DetectedVars) {
+			varName := m.DetectedVars[m.TemplateFormField]
+			if len(m.TemplateVars[varName]) > 0 {
+				m.TemplateVars[varName] = m.TemplateVars[varName][:len(m.TemplateVars[varName])-1]
+			}
+		}
+		return m, nil
+	}
+
+	// Type characters into current template field
+	if m.ShowTemplateForm && len(m.DetectedVars) > 0 && len(msg.String()) == 1 {
+		if m.TemplateFormField < len(m.DetectedVars) {
+			varName := m.DetectedVars[m.TemplateFormField]
+			m.TemplateVars[varName] += msg.String()
+		}
+		return m, nil
+	}
+
+	return m, nil
+}
