@@ -42,39 +42,47 @@ func (m Model) View() string {
 		return renderDetailView(m)
 	}
 
-	var sections []string
-
-	// Header
-	sections = append(sections, renderHeader(m))
-
-	// Main content area
-	if m.ViewMode == ViewGrid {
-		// Grid view
-		sections = append(sections, renderGridView(m))
-	} else if m.ViewMode == ViewTable {
-		// Table view
-		sections = append(sections, renderTableView(m))
-	} else if m.ShowPreview {
-		// Split view: list + preview
-		sections = append(sections, renderSplitView(m))
-	} else {
-		// Full list view
-		sections = append(sections, renderListView(m))
+	// Calculate fixed heights for layout
+	// Header: 2 lines (title + spacing)
+	// Status bar: 2 lines (border + content)
+	// Content: remainder
+	headerHeight := 2
+	statusBarHeight := 2
+	contentHeight := m.Height - headerHeight - statusBarHeight
+	if contentHeight < 1 {
+		contentHeight = 1
 	}
 
-	// Status bar
-	sections = append(sections, renderStatusBar(m))
+	// Header
+	header := renderHeader(m)
 
-	// Join all sections and ensure they fill the screen height to prevent ghosting
-	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	// Main content area - wrap in fixed-height container to prevent remnants
+	var mainContent string
+	if m.ViewMode == ViewGrid {
+		// Grid view
+		mainContent = renderGridView(m)
+	} else if m.ViewMode == ViewTable {
+		// Table view
+		mainContent = renderTableView(m)
+	} else if m.ShowPreview {
+		// Split view: list + preview
+		mainContent = renderSplitView(m)
+	} else {
+		// Full list view
+		mainContent = renderListView(m)
+	}
 
-	// Use Place to ensure content fills entire screen and clears any previous render artifacts
-	return lipgloss.Place(m.Width, m.Height,
-		lipgloss.Left, lipgloss.Top,
-		content,
-		lipgloss.WithWhitespaceChars(" "),
-		lipgloss.WithWhitespaceForeground(lipgloss.NoColor{}),
-	)
+	// Wrap content in fixed-height container to ensure consistent layout
+	contentContainer := lipgloss.NewStyle().
+		Height(contentHeight).
+		Width(m.Width).
+		Render(mainContent)
+
+	// Status bar - always at the bottom
+	statusBar := renderStatusBar(m)
+
+	// Join sections with fixed positioning
+	return lipgloss.JoinVertical(lipgloss.Left, header, contentContainer, statusBar)
 }
 
 // renderHeader renders the app title, search box, and card count
@@ -374,21 +382,33 @@ func renderGridWithPreview(m Model) string {
 	// For wide screens (>120 chars), do side-by-side
 	// For narrow screens, do top/bottom
 	if m.Width > 120 {
-		// Side-by-side: FIXED 50/50 split for stability
-		// This avoids complex calculations that can produce invalid dimensions
-		gridWidth := m.Width / 2
-		previewWidth := m.Width - gridWidth - 4 // Account for spacing and borders
+		// Side-by-side: TRUE 50/50 split
+		// Account for separator (2 chars) and preview border+padding (4 chars)
+		separator := 2
+		previewBorderPadding := 4
+
+		// Split remaining space evenly
+		availableWidth := m.Width - separator - previewBorderPadding
+		gridWidth := availableWidth / 2
+		previewContentWidth := availableWidth - gridWidth
 
 		// Ensure minimum widths
 		if gridWidth < GridCardTotalWidth {
 			gridWidth = GridCardTotalWidth
 		}
-		if previewWidth < 30 {
-			previewWidth = 30
+		if previewContentWidth < 30 {
+			previewContentWidth = 30
 		}
 
 		gridView := renderGridCards(m, gridWidth, availableHeight)
-		previewView := renderPreviewPaneWithWidth(m, availableHeight, previewWidth)
+
+		// Wrap grid in exact width container to prevent overflow
+		gridStyle := lipgloss.NewStyle().
+			Width(gridWidth).
+			Height(availableHeight)
+		gridView = gridStyle.Render(gridView)
+
+		previewView := renderPreviewPaneWithWidth(m, availableHeight, previewContentWidth)
 
 		return lipgloss.JoinHorizontal(lipgloss.Top, gridView, "  ", previewView)
 	} else {
@@ -594,12 +614,12 @@ func renderPreviewPaneWithWidth(m Model, height int, width int) string {
 	category := styleCategoryName(categoryName, categoryColor)
 	header := fmt.Sprintf("%s  %s", title, category)
 
-	// Content - use almost all available space
+	// Content - use cached or raw content
+	// TFE-style: never render in View(), always use pre-rendered cache
 	content := card.Content
-
-	// Render with markdown if enabled
-	if m.UseMarkdownRender {
-		content = renderMarkdown(content, width-4)
+	if m.UseMarkdownRender && m.CachedPreviewContent != "" && m.CachedPreviewWidth == width-4 {
+		// Use cached rendered markdown
+		content = m.CachedPreviewContent
 	}
 
 	// More accurate calculation: border (2) + title (1) + blank line (1) + padding (2) = 6 total
@@ -678,6 +698,7 @@ func renderStatusBar(m Model) string {
 		if m.ViewMode == ViewGrid {
 			hints = []string{
 				styleHelpKey.Render("↑↓←→") + styleHelpDesc.Render(" navigate"),
+				styleHelpKey.Render("Space") + styleHelpDesc.Render(" preview"),
 				styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
 				styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
 				styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
@@ -694,13 +715,24 @@ func renderStatusBar(m Model) string {
 				styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
 			}
 		} else {
-			hints = []string{
-				styleHelpKey.Render("↑↓") + styleHelpDesc.Render(" navigate"),
-				styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
-				styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
-				styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
-				styleHelpKey.Render("g") + styleHelpDesc.Render(" grid"),
-				styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+			// List view
+			if m.ShowPreview {
+				hints = []string{
+					styleHelpKey.Render("↑↓") + styleHelpDesc.Render(" navigate"),
+					styleHelpKey.Render("Space") + styleHelpDesc.Render(" preview"),
+					styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
+					styleHelpKey.Render("p") + styleHelpDesc.Render(" hide preview"),
+					styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+				}
+			} else {
+				hints = []string{
+					styleHelpKey.Render("↑↓") + styleHelpDesc.Render(" navigate"),
+					styleHelpKey.Render("Enter") + styleHelpDesc.Render(" copy"),
+					styleHelpKey.Render("n") + styleHelpDesc.Render(" new"),
+					styleHelpKey.Render("f") + styleHelpDesc.Render(" filter"),
+					styleHelpKey.Render("g") + styleHelpDesc.Render(" grid"),
+					styleHelpKey.Render("?") + styleHelpDesc.Render(" help"),
+				}
 			}
 		}
 	}
@@ -725,7 +757,7 @@ func renderHelp(m Model) string {
 		"  g              Cycle through list → grid → table view",
 		"  p              Toggle preview pane (list/grid modes)",
 		"                 Side-by-side on wide screens!",
-		"  Space          Pin card to preview (grid view)",
+		"  Space          Update preview to selected card",
 		"",
 		styleHelpKey.Render("Table View:"),
 		"  1              Sort by title (press again to reverse)",
@@ -1020,9 +1052,9 @@ func renderDetailView(m Model) string {
 	// Use most of screen width (leave margin)
 	contentWidth := m.Width - 8
 
-	if m.UseMarkdownRender {
-		// Render markdown using glamour
-		renderedContent = renderMarkdown(content, contentWidth)
+	// TFE-style: use cached content if available and width matches
+	if m.UseMarkdownRender && m.CachedDetailContent != "" && m.CachedDetailWidth == contentWidth {
+		renderedContent = m.CachedDetailContent
 	} else {
 		renderedContent = content
 	}
@@ -1194,30 +1226,99 @@ func buildDetailFooter(m Model, hasTemplates bool) string {
 	return strings.Join(hints, "  ")
 }
 
-// renderMarkdown uses glamour to render markdown content
+// Markdown rendering cache - based on TFE's approach
+type markdownCacheEntry struct {
+	content string
+	width   int
+}
+
+var markdownCache = make(map[string]markdownCacheEntry)
+var cachedGlamourRenderer *glamour.TermRenderer
+var cachedGlamourWidth int
+
+// renderMarkdown uses glamour to render markdown content with smart caching
+// Based on TFE's optimization strategies
 func renderMarkdown(content string, width int) string {
 	// Validate width to prevent glamour panics
 	if width < 10 {
 		width = 10
 	}
 
-	// Create a new glamour renderer with dark style
-	r, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width),
-	)
-	if err != nil {
-		// Fallback to plain text if glamour fails
+	// TFE optimization: Limit markdown line count to prevent Glamour hangs
+	// Files over 2000 lines are treated as plain text
+	const maxMarkdownLines = 2000
+	lineCount := strings.Count(content, "\n") + 1
+	if lineCount > maxMarkdownLines {
+		// Too large for Glamour - return plain text
 		return content
 	}
 
-	// Render the markdown
-	rendered, err := r.Render(content)
+	// Create cache key from content length + first/last 100 chars
+	// This is more robust than just first 100 chars
+	contentKey := fmt.Sprintf("%d", len(content))
+	if len(content) > 200 {
+		contentKey = fmt.Sprintf("%s_%s_%d",
+			content[:100],
+			content[len(content)-100:],
+			len(content))
+	} else {
+		contentKey = content
+	}
+
+	// Check cache - must match both content AND width
+	if cached, ok := markdownCache[contentKey]; ok && cached.width == width {
+		return cached.content
+	}
+
+	// TFE optimization: Reuse renderer if width hasn't changed much
+	// Only recreate renderer if width changed significantly (> 20 chars)
+	if cachedGlamourRenderer == nil || abs(cachedGlamourWidth-width) > 20 {
+		r, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width),
+		)
+		if err != nil {
+			// Fallback to plain text if glamour fails
+			return content
+		}
+		cachedGlamourRenderer = r
+		cachedGlamourWidth = width
+
+		// Clear cache when renderer changes width significantly
+		// This ensures cached content matches new width
+		markdownCache = make(map[string]markdownCacheEntry)
+	}
+
+	// Render markdown using cached renderer
+	rendered, err := cachedGlamourRenderer.Render(content)
 	if err != nil {
 		// Fallback to plain text on error
 		return content
 	}
 
 	// Trim trailing newlines that glamour adds
-	return strings.TrimRight(rendered, "\n")
+	result := strings.TrimRight(rendered, "\n")
+
+	// Store in cache with automatic LRU-style cleanup
+	if len(markdownCache) >= 100 {
+		// When cache is full, clear oldest half
+		// Simple approach: just clear everything
+		// In production, you'd implement proper LRU
+		markdownCache = make(map[string]markdownCacheEntry)
+	}
+
+	markdownCache[contentKey] = markdownCacheEntry{
+		content: result,
+		width:   width,
+	}
+
+	return result
+}
+
+// abs returns absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

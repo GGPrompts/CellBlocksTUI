@@ -14,8 +14,8 @@ import (
 func main() {
 	// Create program with options
 	opts := []tea.ProgramOption{
-		tea.WithAltScreen(),      // Use alternate screen buffer
-		tea.WithMouseAllMotion(), // Enable full mouse/touch support (including hover)
+		tea.WithAltScreen(),       // Use alternate screen buffer
+		tea.WithMouseCellMotion(), // Enable mouse clicks (without constant hover events)
 	}
 
 	p := tea.NewProgram(

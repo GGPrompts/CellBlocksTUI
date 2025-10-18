@@ -18,7 +18,7 @@ var (
 	colorYellow    = lipgloss.Color("#ffff00") // Yellow
 	colorOrange    = lipgloss.Color("#ff9500") // Orange
 	colorBlue      = lipgloss.Color("#00a6ff") // Blue
-	colorGray      = lipgloss.Color("#666666") // Gray
+	colorGray      = lipgloss.Color("#888888") // Gray (lighter for visibility)
 	colorDimmed    = lipgloss.Color("#444444") // Dimmed
 
 	// Text styles

@@ -59,6 +59,14 @@ type Model struct {
 	ScrollOffset       int
 	SelectedCategories map[string]bool // Set of selected category IDs
 
+	// Preview cache - TFE-style approach
+	CachedPreviewContent string // Pre-rendered markdown content
+	CachedPreviewWidth   int    // Width the cache was rendered for
+	CachedDetailContent  string // Pre-rendered detail view markdown
+	CachedDetailWidth    int    // Width the detail cache was rendered for
+	PreviewRenderPending bool   // True when async preview render is in progress
+	DetailRenderPending  bool   // True when async detail render is in progress
+
 	// View mode
 	ViewMode           ViewMode
 	ShowPreview        bool
@@ -141,4 +149,23 @@ type tickMsg struct{}
 type fileChangedMsg struct {
 	data    *CellBlocksData
 	newCards int // Number of new cards detected
+}
+
+// previewRenderCompleteMsg is sent when async preview markdown rendering completes
+type previewRenderCompleteMsg struct {
+	content string
+	width   int
+	index   int // Card index this render is for
+}
+
+// detailRenderCompleteMsg is sent when async detail markdown rendering completes
+type detailRenderCompleteMsg struct {
+	content string
+	width   int
+}
+
+// resizeDebounceMsg is sent after window resize debounce delay
+type resizeDebounceMsg struct {
+	width  int
+	height int
 }

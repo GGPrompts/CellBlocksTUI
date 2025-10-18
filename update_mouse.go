@@ -220,12 +220,24 @@ func (m Model) calculateGridClickIndex(msg tea.MouseMsg, headerOffset int) int {
 	// Calculate available dimensions for grid
 	availableWidth := m.Width
 	availableHeight := m.Height - 6
+	gridWidth := availableWidth
 
 	if m.ShowPreview {
 		if m.Width > 120 {
-			// Side-by-side: use same calculation as rendering
-			maxGridWidth := (GridCardTotalWidth * GridMaxColumns) + 2
-			availableWidth = min(m.Width/2, maxGridWidth)
+			// Side-by-side: calculate actual grid width (matches renderGridWithPreview)
+			separator := 2
+			previewBorderPadding := 4
+			actualAvailableWidth := m.Width - separator - previewBorderPadding
+			gridWidth = actualAvailableWidth / 2
+			if gridWidth < GridCardTotalWidth {
+				gridWidth = GridCardTotalWidth
+			}
+			availableWidth = gridWidth
+
+			// Check if click is within grid area (not in preview)
+			if msg.X >= gridWidth {
+				return -1 // Click is in preview area, not grid
+			}
 		} else {
 			// Top/bottom: adjust height
 			if availableHeight > 50 {

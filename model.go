@@ -252,6 +252,97 @@ func max(a, b int) int {
 	return b
 }
 
+// populatePreviewCacheAsync renders markdown for the preview pane asynchronously
+// Returns a tea.Cmd that will render in a goroutine and send a message when complete
+func (m *Model) populatePreviewCacheAsync() tea.Cmd {
+	if !m.UseMarkdownRender {
+		// Clear cache when not using markdown
+		m.CachedPreviewContent = ""
+		m.CachedPreviewWidth = 0
+		m.PreviewRenderPending = false
+		return nil
+	}
+
+	card := m.getPreviewedCard()
+	if card == nil {
+		m.CachedPreviewContent = ""
+		m.CachedPreviewWidth = 0
+		m.PreviewRenderPending = false
+		return nil
+	}
+
+	// Calculate available width (matches renderPreviewPaneWithWidth)
+	width := m.Width - 2
+	contentWidth := width - 4 // Account for border and padding
+
+	// Only render if width changed or cache is empty
+	if m.CachedPreviewContent != "" && m.CachedPreviewWidth == contentWidth {
+		m.PreviewRenderPending = false
+		return nil // Cache is still valid
+	}
+
+	// Mark render as pending
+	m.PreviewRenderPending = true
+
+	// Capture values for goroutine
+	content := card.Content
+	index := m.PreviewedIndex
+
+	// Return async command
+	return func() tea.Msg {
+		rendered := renderMarkdown(content, contentWidth)
+		return previewRenderCompleteMsg{
+			content: rendered,
+			width:   contentWidth,
+			index:   index,
+		}
+	}
+}
+
+// populateDetailCacheAsync renders markdown for the detail view asynchronously
+// Returns a tea.Cmd that will render in a goroutine and send a message when complete
+func (m *Model) populateDetailCacheAsync() tea.Cmd {
+	if !m.UseMarkdownRender {
+		// Clear cache when not using markdown
+		m.CachedDetailContent = ""
+		m.CachedDetailWidth = 0
+		m.DetailRenderPending = false
+		return nil
+	}
+
+	card := m.getSelectedCard()
+	if card == nil {
+		m.CachedDetailContent = ""
+		m.CachedDetailWidth = 0
+		m.DetailRenderPending = false
+		return nil
+	}
+
+	// Calculate available width (matches renderDetailView)
+	contentWidth := m.Width - 8
+
+	// Only render if width changed or cache is empty
+	if m.CachedDetailContent != "" && m.CachedDetailWidth == contentWidth {
+		m.DetailRenderPending = false
+		return nil // Cache is still valid
+	}
+
+	// Mark render as pending
+	m.DetailRenderPending = true
+
+	// Capture values for goroutine
+	content := card.Content
+
+	// Return async command
+	return func() tea.Msg {
+		rendered := renderMarkdown(content, contentWidth)
+		return detailRenderCompleteMsg{
+			content: rendered,
+			width:   contentWidth,
+		}
+	}
+}
+
 // saveNewCard creates a new card and saves it to disk
 func (m *Model) saveNewCard() tea.Cmd {
 	// Validate input

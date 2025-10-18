@@ -18,6 +18,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
 		m.Height = msg.Height
+		// Invalidate caches on resize (width changed)
+		m.CachedPreviewWidth = 0
+		m.CachedDetailWidth = 0
+		// Debounce resize - wait 200ms before re-rendering
+		// This prevents lag during window dragging
+		return m, tea.Tick(200*time.Millisecond, func(t time.Time) tea.Msg {
+			return resizeDebounceMsg{width: msg.Width, height: msg.Height}
+		})
+
+	// Debounced resize - actually re-render after resize stops
+	case resizeDebounceMsg:
+		// Only re-render if size matches (prevents stale renders)
+		if msg.width == m.Width && msg.height == m.Height {
+			var cmds []tea.Cmd
+			if m.ShowPreview {
+				cmds = append(cmds, m.populatePreviewCacheAsync())
+			}
+			if m.ViewMode == ViewDetail {
+				cmds = append(cmds, m.populateDetailCacheAsync())
+			}
+			return m, tea.Batch(cmds...)
+		}
 		return m, nil
 
 	// Data loaded successfully
@@ -71,6 +93,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Clipboard copy failed
 	case copyErrorMsg:
 		m.Error = msg.err
+		return m, nil
+
+	// Preview markdown rendering completed
+	case previewRenderCompleteMsg:
+		// Only update cache if this render is still relevant
+		// (i.e., preview index hasn't changed)
+		if msg.index == m.PreviewedIndex {
+			m.CachedPreviewContent = msg.content
+			m.CachedPreviewWidth = msg.width
+		}
+		m.PreviewRenderPending = false
+		return m, nil
+
+	// Detail markdown rendering completed
+	case detailRenderCompleteMsg:
+		m.CachedDetailContent = msg.content
+		m.CachedDetailWidth = msg.width
+		m.DetailRenderPending = false
 		return m, nil
 
 	// Periodic tick to check for file changes
@@ -134,6 +174,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Exit preview pane if active
 		if m.ShowPreview {
 			m.ShowPreview = false
+			// Clear preview cache to free memory
+			m.CachedPreviewContent = ""
+			m.CachedPreviewWidth = 0
+			m.PreviewRenderPending = false
 			return m, nil
 		}
 		// Exit special screens back to main view
@@ -141,6 +185,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Reset detail view state when exiting detail mode
 			m.DetailScrollOffset = 0
 			m.ShowTemplateForm = false
+			// Clear detail cache to free memory
+			if m.ViewMode == ViewDetail {
+				m.CachedDetailContent = ""
+				m.CachedDetailWidth = 0
+				m.DetailRenderPending = false
+			}
 			// Return to list view
 			m.ViewMode = ViewList
 			return m, nil
@@ -158,6 +208,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.ShowPreview {
 			m.PreviewedIndex = m.SelectedIndex
 			m.PreviewScrollOffset = 0
+			// Populate cache when opening preview (async)
+			return m, m.populatePreviewCacheAsync()
+		} else {
+			// Clear cache when closing preview to free memory
+			m.CachedPreviewContent = ""
+			m.CachedPreviewWidth = 0
+			m.PreviewRenderPending = false
 		}
 		return m, nil
 
@@ -165,6 +222,15 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Toggle markdown rendering (works in list/grid view with preview, and detail view)
 		if m.ViewMode == ViewList || m.ViewMode == ViewGrid || m.ViewMode == ViewDetail {
 			m.UseMarkdownRender = !m.UseMarkdownRender
+			// Repopulate cache with new rendering mode (async)
+			var cmds []tea.Cmd
+			if m.ShowPreview {
+				cmds = append(cmds, m.populatePreviewCacheAsync())
+			}
+			if m.ViewMode == ViewDetail {
+				cmds = append(cmds, m.populateDetailCacheAsync())
+			}
+			return m, tea.Batch(cmds...)
 		}
 		return m, nil
 
@@ -303,10 +369,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, -1) // Move up one row
 		} else {
 			m.moveSelection(-1)
-			// In list/table view, update preview as you navigate
-			if m.ViewMode == ViewList {
-				m.PreviewedIndex = m.SelectedIndex
-			}
+			// Don't auto-update preview while scrolling - only on explicit action
+			// This prevents constant markdown re-rendering lag
 		}
 		return m, nil
 
@@ -315,10 +379,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.moveSelectionGrid(0, 1) // Move down one row
 		} else {
 			m.moveSelection(1)
-			// In list/table view, update preview as you navigate
-			if m.ViewMode == ViewList {
-				m.PreviewedIndex = m.SelectedIndex
-			}
+			// Don't auto-update preview while scrolling - only on explicit action
+			// This prevents constant markdown re-rendering lag
 		}
 		return m, nil
 
@@ -390,14 +452,21 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ViewMode = ViewDetail
 			m.DetailScrollOffset = 0
 			m.ShowPreview = false // Disable preview pane when entering detail view
+			// Clear preview cache to free memory
+			m.CachedPreviewContent = ""
+			m.CachedPreviewWidth = 0
+			m.PreviewRenderPending = false
 			// Detect template variables
 			m.DetectedVars = ExtractVariables(card.Content)
 			// Initialize template vars if we have detected vars
 			if len(m.DetectedVars) > 0 && m.TemplateVars == nil {
 				m.TemplateVars = make(map[string]string)
 			}
+			// Populate detail cache (async)
+			cmd := m.populateDetailCacheAsync()
 			// Auto-show template form if variables detected
 			m.ShowTemplateForm = len(m.DetectedVars) > 0
+			return m, cmd
 		}
 		return m, nil
 
@@ -416,23 +485,31 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ViewMode = ViewDetail
 			m.DetailScrollOffset = 0
 			m.ShowPreview = false // Disable preview pane when entering detail view
+			// Clear preview cache to free memory
+			m.CachedPreviewContent = ""
+			m.CachedPreviewWidth = 0
+			m.PreviewRenderPending = false
 			// Detect template variables
 			m.DetectedVars = ExtractVariables(card.Content)
 			// Initialize template vars if we have detected vars
 			if len(m.DetectedVars) > 0 && m.TemplateVars == nil {
 				m.TemplateVars = make(map[string]string)
 			}
+			// Populate detail cache (async)
+			cmd := m.populateDetailCacheAsync()
 			// Auto-show template form if variables detected
 			m.ShowTemplateForm = len(m.DetectedVars) > 0
+			return m, cmd
 		}
 		return m, nil
 
 	case " ": // Spacebar
-		// In grid view: pin current selection to preview
-		// In list view: toggle preview (existing behavior handled above by "p")
-		if m.ViewMode == ViewGrid && m.ShowPreview {
+		// Update preview to show currently selected card (works in both list and grid)
+		if m.ShowPreview {
 			m.PreviewedIndex = m.SelectedIndex
-			m.PreviewScrollOffset = 0 // Reset scroll when pinning new card
+			m.PreviewScrollOffset = 0 // Reset scroll when updating preview
+			// Populate preview cache for the new card (async)
+			return m, m.populatePreviewCacheAsync()
 		}
 		return m, nil
 	}
